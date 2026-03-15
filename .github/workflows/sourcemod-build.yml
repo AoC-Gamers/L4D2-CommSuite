@@ -41,6 +41,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes curl tar python3
 
+      - name: Verify GitHub CLI
+        if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'develop')
+        run: gh --version
+
       - name: Compile SourceMod plugins
         run: bash ./scripts/ci-build-sourcemod.sh
 
@@ -81,11 +85,26 @@ jobs:
 
       - name: Publish channel release
         if: github.event_name != 'pull_request' && steps.artifact.outputs.version != ''
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.artifact.outputs.version }}
-          name: ${{ steps.artifact.outputs.release_name }}
-          prerelease: ${{ steps.artifact.outputs.prerelease == 'true' }}
-          overwrite_files: true
-          fail_on_unmatched_files: true
-          files: dist/release/l4d2-commsuite-${{ steps.artifact.outputs.version }}.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="${{ steps.artifact.outputs.version }}"
+          title="${{ steps.artifact.outputs.release_name }}"
+          asset="dist/release/l4d2-commsuite-${{ steps.artifact.outputs.version }}.zip"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [[ "${{ steps.artifact.outputs.prerelease }}" == "true" ]]; then
+              gh release edit "$tag" --title "$title" --prerelease
+            else
+              gh release edit "$tag" --title "$title" --latest
+            fi
+          else
+            if [[ "${{ steps.artifact.outputs.prerelease }}" == "true" ]]; then
+              gh release create "$tag" --title "$title" --prerelease --target "$GITHUB_SHA"
+            else
+              gh release create "$tag" --title "$title" --latest --target "$GITHUB_SHA"
+            fi
+          fi
+
+          gh release upload "$tag" "$asset" --clobber
