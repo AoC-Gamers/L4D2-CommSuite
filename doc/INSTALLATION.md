@@ -21,10 +21,25 @@ Dependencias opcionales:
 
 ## Despliegue minimo
 
-1. Compila los `.sp` a `.smx`.
-2. Sube los binarios a `addons/sourcemod/plugins/`.
-3. Sube las includes publicas si otro proyecto va a consumir la API.
+La forma recomendada es descargar los binarios ya generados por CI en GitHub Releases:
+
+- `l4d2-commsuite-latest.zip`
+  - canal estable desde `main`
+- `l4d2-commsuite-develop.zip`
+  - canal de integracion desde `develop`
+- `l4d2-commsuite-<version>.zip`
+  - release versionada por tag `sourcemod/vX.Y.Z`
+
+Despliegue:
+
+1. Descarga el `.zip` del canal que quieras usar.
+2. Extrae `addons/sourcemod/` dentro del servidor.
+3. Si otro proyecto va a consumir la API, usa las includes publicas que vienen en el paquete.
 4. Reinicia el servidor o carga los plugins.
+
+Compilacion local:
+
+- solo es necesaria si vas a desarrollar o modificar la suite
 
 ## Autoexec y logs
 

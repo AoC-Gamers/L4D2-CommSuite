@@ -16,7 +16,7 @@ enum DebugMask
 	Debug_SQL = 8
 };
 
-#define L4D2_CHATLOG_VERSION "0.1.0-dev"
+#define L4D2_CHATLOG_VERSION "0.1.0"
 #define L4D2_CHATLOG_SQL_TABLE "l4d2_chatlog_joins"
 
 ConVar g_cvDebugMask = null;
