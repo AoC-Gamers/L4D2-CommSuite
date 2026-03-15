@@ -63,6 +63,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes curl tar python3
 
+      - name: Verify GitHub CLI
+        run: gh --version
+
       - name: Build SourceMod artifact
         run: bash ./scripts/ci-build-sourcemod.sh
 
@@ -72,12 +75,27 @@ jobs:
         run: bash ./scripts/ci-package-release-assets.sh
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ needs.prepare-release.outputs.release_name }}
-          generate_release_notes: true
-          prerelease: ${{ needs.prepare-release.outputs.prerelease == 'true' }}
-          overwrite_files: true
-          fail_on_unmatched_files: true
-          files: dist/release/l4d2-commsuite-${{ needs.prepare-release.outputs.version }}.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          title="${{ needs.prepare-release.outputs.release_name }}"
+          asset="dist/release/l4d2-commsuite-${{ needs.prepare-release.outputs.version }}.zip"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [[ "${{ needs.prepare-release.outputs.prerelease }}" == "true" ]]; then
+              gh release edit "$tag" --title "$title" --prerelease
+            else
+              gh release edit "$tag" --title "$title" --latest
+            fi
+
+            gh release upload "$tag" "$asset" --clobber
+            exit 0
+          fi
+
+          if [[ "${{ needs.prepare-release.outputs.prerelease }}" == "true" ]]; then
+            gh release create "$tag" "$asset" --title "$title" --generate-notes --verify-tag --prerelease
+          else
+            gh release create "$tag" "$asset" --title "$title" --generate-notes --verify-tag --latest
+          fi
