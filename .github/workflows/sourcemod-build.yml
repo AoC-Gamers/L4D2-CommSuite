@@ -57,12 +57,14 @@ jobs:
             main)
               echo "version=latest" >> "$GITHUB_OUTPUT"
               echo "name=l4d2-commsuite-latest" >> "$GITHUB_OUTPUT"
+              echo "tag=channel/latest" >> "$GITHUB_OUTPUT"
               echo "release_name=Latest" >> "$GITHUB_OUTPUT"
               echo "prerelease=false" >> "$GITHUB_OUTPUT"
               ;;
             develop)
               echo "version=develop" >> "$GITHUB_OUTPUT"
               echo "name=l4d2-commsuite-develop" >> "$GITHUB_OUTPUT"
+              echo "tag=channel/develop" >> "$GITHUB_OUTPUT"
               echo "release_name=Develop" >> "$GITHUB_OUTPUT"
               echo "prerelease=true" >> "$GITHUB_OUTPUT"
               ;;
@@ -80,8 +82,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f "${{ steps.artifact.outputs.version }}" "$GITHUB_SHA"
-          git push origin "refs/tags/${{ steps.artifact.outputs.version }}" --force
+          git tag -f "${{ steps.artifact.outputs.tag }}" "$GITHUB_SHA"
+          git push origin "refs/tags/${{ steps.artifact.outputs.tag }}" --force
 
       - name: Publish channel release
         if: github.event_name != 'pull_request' && steps.artifact.outputs.version != ''
@@ -89,7 +91,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          tag="${{ steps.artifact.outputs.version }}"
+          tag="${{ steps.artifact.outputs.tag }}"
           title="${{ steps.artifact.outputs.release_name }}"
           asset="dist/release/l4d2-commsuite-${{ steps.artifact.outputs.version }}.zip"
 
