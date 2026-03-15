@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - sourcemod/v*
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  SOURCEMOD_ARCHIVE_URL: https://sm.alliedmods.net/smdrop/1.12/sourcemod-1.12.0-git7223-linux.tar.gz
+
+jobs:
+  prepare-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    outputs:
+      component: ${{ steps.release.outputs.component }}
+      version: ${{ steps.release.outputs.version }}
+      release_name: ${{ steps.release.outputs.release_name }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: release
+        run: bash ./scripts/ci-resolve-release.sh "${GITHUB_REF_NAME}"
+
+      - name: Ensure tag points to main history
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "Tag ${GITHUB_REF_NAME} does not point to a commit on main." >&2
+            exit 1
+          fi
+
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install SourceMod build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes curl tar python3
+
+      - name: Build SourceMod artifact
+        run: bash ./scripts/ci-build-sourcemod.sh
+
+      - name: Package release assets
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: bash ./scripts/ci-package-release-assets.sh
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ needs.prepare-release.outputs.release_name }}
+          generate_release_notes: true
+          prerelease: ${{ needs.prepare-release.outputs.prerelease == 'true' }}
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: dist/release/l4d2-commsuite-${{ needs.prepare-release.outputs.version }}.zip
