@@ -47,6 +47,7 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 
 - [Instalacion](doc/INSTALLATION.md)
 - [Plugins y Dependencias](doc/PLUGINS.md)
+- [Changelog](CHANGELOG.md)
 - [Flujo de chat textual](doc/TEXT_CHAT_FLOW.md)
 - [Flujo de voz](doc/VOICE_CHAT_FLOW.md)
 - [Auditoria SQL de joins](doc/JOIN_AUDIT_SQL.md)

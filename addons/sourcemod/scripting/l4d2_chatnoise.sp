@@ -14,7 +14,7 @@ enum L4D2ChatNoiseDebugMask
 	L4D2ChatNoiseDebug_Noise = 2
 };
 
-#define L4D2_CHATNOISE_VERSION "0.1.0-dev"
+#define L4D2_CHATNOISE_VERSION "0.1.0"
 
 ConVar g_cvDebugMask = null;
 ConVar g_cvEnabled = null;
