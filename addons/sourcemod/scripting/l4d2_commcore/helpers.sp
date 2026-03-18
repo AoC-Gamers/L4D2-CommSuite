@@ -5,7 +5,7 @@
 
 bool L4D2Comm_DebugEnabled(int bit)
 {
-	return g_cvL4D2Comm_DebugMask != null && (g_cvL4D2Comm_DebugMask.IntValue & bit) != 0;
+	return L4D2CS_DebugMaskEnabled(g_cvL4D2Comm_LogMode, g_cvL4D2Comm_DebugMask, bit);
 }
 
 bool L4D2Comm_IsValidClient(int client)

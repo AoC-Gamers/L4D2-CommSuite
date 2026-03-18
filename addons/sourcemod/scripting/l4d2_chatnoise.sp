@@ -14,7 +14,7 @@ enum L4D2ChatNoiseDebugMask
 	L4D2ChatNoiseDebug_Noise = 2
 };
 
-#define L4D2_CHATNOISE_VERSION "0.1.0"
+#define L4D2_CHATNOISE_VERSION "0.2.0"
 
 ConVar g_cvDebugMask = null;
 ConVar g_cvEnabled = null;
@@ -24,6 +24,7 @@ ConVar g_cvSuppressPlayerTeam = null;
 ConVar g_cvSuppressServerCvar = null;
 ConVar g_cvSuppressNameChange = null;
 ConVar g_cvSuppressSourceModCvar = null;
+ConVar g_cvLogMode = null;
 
 bool g_bCoreAvailable = false;
 char g_sLogPath[PLATFORM_MAX_PATH];
@@ -63,6 +64,7 @@ public void OnLibraryRemoved(const char[] name)
 
 public void OnPluginStart()
 {
+	g_cvLogMode = L4D2CS_EnsureLogModeConVar();
 	g_cvDebugMask = CreateConVar("l4d2_chatnoise_debug_mask", "0", "Debug bitmask. 1=general 2=noise (all=3).", FCVAR_NONE, true, 0.0, true, 3.0);
 	g_cvEnabled = CreateConVar("l4d2_chatnoise_enabled", "1", "Enable noise filtering.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvSuppressPlayerConnect = CreateConVar("l4d2_chatnoise_suppress_player_connect", "1", "Suppress player connect chat noise.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -74,6 +76,7 @@ public void OnPluginStart()
 	L4D2CS_BuildLogPath("l4d2_chatnoise.log", g_sLogPath, sizeof(g_sLogPath));
 
 	L4D2CN_InitCommands();
+	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATNOISE_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_CHATNOISE_VERSION);
 	L4D2CN_Debug("Plugin started. version=%s", L4D2_CHATNOISE_VERSION);
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_chatnoise", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
@@ -81,7 +84,7 @@ public void OnPluginStart()
 
 bool L4D2CN_DebugEnabled(int bit)
 {
-	return g_cvDebugMask != null && (g_cvDebugMask.IntValue & bit) != 0;
+	return L4D2CS_DebugMaskEnabled(g_cvLogMode, g_cvDebugMask, bit);
 }
 
 void L4D2CN_LogLine(const char[] tag, const char[] message)

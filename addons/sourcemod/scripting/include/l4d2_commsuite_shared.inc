@@ -5,10 +5,19 @@
 
 #define L4D2_COMMSUITE_AUTOEXEC_FOLDER "sourcemod/l4d2_commsuite"
 #define L4D2_COMMSUITE_AUTOEXEC_FOLDER_PATH "../../cfg/sourcemod/l4d2_commsuite"
+#define L4D2_COMMSUITE_SM_LOGS_FOLDER "logs"
 #define L4D2_COMMSUITE_LOG_FOLDER_PATH "logs/l4d2_commsuite"
+#define L4D2_COMMSUITE_NORMAL_LOG_FILE "logs/l4d2_commsuite.log"
 #define L4D2_COMMSUITE_BASECOMM_LIBRARY "basecomm"
 #define L4D2_COMMSUITE_SOURCECOMMS_LIBRARY "sourcecomms++"
 #define L4D2_COMMSUITE_BANSYSTEM_COMM_LIBRARY "bansystem_comm"
+
+enum L4D2CommSuiteLogMode
+{
+	L4D2CommSuiteLogMode_Off = 0,
+	L4D2CommSuiteLogMode_Normal,
+	L4D2CommSuiteLogMode_Debug
+}
 
 #define L4D2_COMMSUITE_COMMCORE_PREFIX "{olive}[L4D2 CommCore]{default}"
 #define L4D2_COMMSUITE_COMMCORE_LOG_PREFIX "[L4D2 CommCore]"
@@ -24,6 +33,37 @@
 stock bool IsHumanClient(int client)
 {
 	return client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client);
+}
+
+stock ConVar L4D2CS_EnsureLogModeConVar()
+{
+	ConVar cvLogMode = CreateConVar("l4d2_commsuite_log_mode", "0", "L4D2 CommSuite log mode. 0=off, 1=normal, 2=debug.", FCVAR_NONE, true, 0.0, true, 2.0);
+	if (cvLogMode != null)
+	{
+		return cvLogMode;
+	}
+
+	return FindConVar("l4d2_commsuite_log_mode");
+}
+
+stock bool L4D2CS_IsNormalLogMode(ConVar cvLogMode)
+{
+	return (cvLogMode != null && cvLogMode.IntValue == view_as<int>(L4D2CommSuiteLogMode_Normal));
+}
+
+stock bool L4D2CS_IsDebugLogMode(ConVar cvLogMode)
+{
+	return (cvLogMode != null && cvLogMode.IntValue == view_as<int>(L4D2CommSuiteLogMode_Debug));
+}
+
+stock bool L4D2CS_DebugMaskEnabled(ConVar cvLogMode, ConVar cvDebugMask, int bit)
+{
+	if (!L4D2CS_IsDebugLogMode(cvLogMode) || cvDebugMask == null)
+	{
+		return false;
+	}
+
+	return ((cvDebugMask.IntValue & bit) != 0);
 }
 
 stock void L4D2CS_EnsureAutoExecFolder()
@@ -44,6 +84,24 @@ stock void L4D2CS_EnsureAutoExecFolder()
 	s_bEnsured = true;
 }
 
+stock void L4D2CS_EnsureSMLogsFolder()
+{
+	static bool s_bEnsured;
+	if (s_bEnsured)
+	{
+		return;
+	}
+
+	char logsPath[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, logsPath, sizeof(logsPath), L4D2_COMMSUITE_SM_LOGS_FOLDER);
+	if (!DirExists(logsPath))
+	{
+		CreateDirectory(logsPath, 511);
+	}
+
+	s_bEnsured = DirExists(logsPath);
+}
+
 stock void L4D2CS_EnsureLogFolder()
 {
 	static bool s_bEnsured;
@@ -52,18 +110,55 @@ stock void L4D2CS_EnsureLogFolder()
 		return;
 	}
 
+	L4D2CS_EnsureSMLogsFolder();
+
+	ConVar cvLogMode = FindConVar("l4d2_commsuite_log_mode");
+	if (!L4D2CS_IsDebugLogMode(cvLogMode))
+	{
+		return;
+	}
+
 	char folderPath[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, folderPath, sizeof(folderPath), L4D2_COMMSUITE_LOG_FOLDER_PATH);
 	if (!DirExists(folderPath))
 	{
-		CreateDirectory(folderPath);
+		CreateDirectory(folderPath, 511);
 	}
 
-	s_bEnsured = true;
+	s_bEnsured = DirExists(folderPath);
 }
 
 stock void L4D2CS_BuildLogPath(const char[] fileName, char[] buffer, int maxlen)
 {
 	L4D2CS_EnsureLogFolder();
 	BuildPath(Path_SM, buffer, maxlen, "%s/%s", L4D2_COMMSUITE_LOG_FOLDER_PATH, fileName);
+}
+
+stock void L4D2CS_BuildNormalLogPath(char[] buffer, int maxlen)
+{
+	L4D2CS_EnsureSMLogsFolder();
+	BuildPath(Path_SM, buffer, maxlen, L4D2_COMMSUITE_NORMAL_LOG_FILE);
+}
+
+stock void L4D2CS_NormalLogToFileEx(ConVar cvLogMode, const char[] prefix, const char[] tag, const char[] format, any ...)
+{
+	if (!L4D2CS_IsNormalLogMode(cvLogMode))
+	{
+		return;
+	}
+
+	char logPath[PLATFORM_MAX_PATH];
+	L4D2CS_BuildNormalLogPath(logPath, sizeof(logPath));
+
+	static char buffer[1024];
+	VFormat(buffer, sizeof(buffer), format, 5);
+
+	if (tag[0] != '\0')
+	{
+		LogToFileEx(logPath, "%s[%s] %s", prefix, tag, buffer);
+	}
+	else
+	{
+		LogToFileEx(logPath, "%s %s", prefix, buffer);
+	}
 }

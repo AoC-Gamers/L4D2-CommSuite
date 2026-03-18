@@ -16,7 +16,7 @@ enum DebugMask
 	Debug_SQL = 8
 };
 
-#define L4D2_CHATLOG_VERSION "0.1.0"
+#define L4D2_CHATLOG_VERSION "0.2.0"
 #define L4D2_CHATLOG_SQL_TABLE "l4d2_chatlog_joins"
 
 ConVar g_cvDebugMask = null;
@@ -38,6 +38,7 @@ ConVar g_cvSqlServerId = null;
 ConVar g_cvSqlDefaultHistoryLimit = null;
 ConVar g_cvSqlDefaultRelatedDays = null;
 ConVar g_cvSqlDefaultRelatedMinShared = null;
+ConVar g_cvLogMode = null;
 
 bool g_bLateLoad = false;
 bool g_bCoreAvailable = false;
@@ -97,6 +98,7 @@ public void OnLibraryRemoved(const char[] name)
 
 public void OnPluginStart()
 {
+	g_cvLogMode = L4D2CS_EnsureLogModeConVar();
 	g_cvDebugMask = CreateConVar("l4d2_chatlog_debug_mask", "0", "Debug bitmask. 1=general 2=write 4=lifecycle 8=sql (all=15).", FCVAR_NONE, true, 0.0, true, 15.0);
 	g_cvEnabled = CreateConVar("l4d2_chatlog_enabled", "1", "Enable chat audit logging.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogPublic = CreateConVar("l4d2_chatlog_log_public", "1", "Log public chat messages.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -123,6 +125,7 @@ public void OnPluginStart()
 
 	InitCommands();
 	RefreshMapState();
+	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_CHATLOG_VERSION);
 	LogFormatted(Debug_General, "debug", "Plugin started. version=%s", L4D2_CHATLOG_VERSION);
 
 	L4D2CS_EnsureAutoExecFolder();
@@ -309,7 +312,7 @@ public Action L4D2Comm_OnPlayerTeamMessage(const char[] playerName, L4DTeam team
 
 bool DebugEnabled(DebugMask bit)
 {
-	return g_cvDebugMask != null && (g_cvDebugMask.IntValue & view_as<int>(bit)) != 0;
+	return L4D2CS_DebugMaskEnabled(g_cvLogMode, g_cvDebugMask, view_as<int>(bit));
 }
 
 void LogFormatted(DebugMask bit, const char[] tag, const char[] format, any ...)
@@ -450,6 +453,7 @@ void GetOptionalServerFilter(int args, int argIndex, char[] buffer, int maxlen)
 
 void CloseDatabase()
 {
+	bool hadConnectionState = (g_db != null || g_bDbReady || g_bDbConnecting);
 	g_bDbReady = false;
 	g_bDbConnecting = false;
 
@@ -457,6 +461,10 @@ void CloseDatabase()
 	{
 		delete g_db;
 		g_db = null;
+	}
+
+	if (hadConnectionState)
+	{
 	}
 }
 
@@ -486,6 +494,7 @@ void RefreshSqlConnection(bool force)
 	if (!SQL_CheckConfig(configName))
 	{
 		LogFormatted(Debug_SQL, "sql", "SQL config not found: %s", configName);
+		L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "database", "config=%s action=config_missing", configName);
 		CloseDatabase();
 		return;
 	}
@@ -509,6 +518,7 @@ public void OnDatabaseConnected(Database db, const char[] error, any data)
 	if (db == null)
 	{
 		g_bDbReady = false;
+		L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "database", "config=%s action=connect_failed error=%s", g_sDbConfig, error);
 		LogFormatted(Debug_SQL, "sql", "SQL connection failed. config=%s error=%s", g_sDbConfig, error);
 		return;
 	}
@@ -516,6 +526,7 @@ public void OnDatabaseConnected(Database db, const char[] error, any data)
 	if (error[0] != '\0')
 	{
 		g_bDbReady = false;
+		L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "database", "config=%s action=connect_failed error=%s", g_sDbConfig, error);
 		LogFormatted(Debug_SQL, "sql", "SQL connection returned error. config=%s error=%s", g_sDbConfig, error);
 		delete db;
 		return;
@@ -529,6 +540,7 @@ public void OnDatabaseConnected(Database db, const char[] error, any data)
 	if (driver == null)
 	{
 		LogFormatted(Debug_SQL, "sql", "Database driver is null. closing connection.");
+		L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "database", "config=%s action=driver_missing", g_sDbConfig);
 		CloseDatabase();
 		return;
 	}
@@ -540,6 +552,7 @@ public void OnDatabaseConnected(Database db, const char[] error, any data)
 	if (!StrEqual(driverName, "mysql", false))
 	{
 		LogFormatted(Debug_SQL, "sql", "Unsupported SQL driver for chatlog join audit: %s", driverName);
+		L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "database", "config=%s action=driver_unsupported driver=%s", g_sDbConfig, driverName);
 		CloseDatabase();
 		return;
 	}
@@ -564,6 +577,7 @@ public void OnSchemaValidated(Database db, DBResultSet results, const char[] err
 	if (error[0] != '\0')
 	{
 		g_bDbReady = false;
+		L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "database", "config=%s action=schema_failed error=%s", g_sDbConfig, error);
 		LogFormatted(Debug_SQL, "sql", "Schema validation failed. error=%s", error);
 		delete results;
 		return;
@@ -572,6 +586,7 @@ public void OnSchemaValidated(Database db, DBResultSet results, const char[] err
 	if (results == null)
 	{
 		g_bDbReady = false;
+		L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "database", "config=%s action=schema_failed error=null_result", g_sDbConfig);
 		LogFormatted(Debug_SQL, "sql", "Schema validation failed with null result and no error text.");
 		return;
 	}

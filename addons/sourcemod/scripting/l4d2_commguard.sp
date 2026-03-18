@@ -27,6 +27,7 @@ enum L4D2CommGuardDebugMask
 ConVar g_cvDebugMask = null;
 ConVar g_cvChatEnabled = null;
 ConVar g_cvVoiceEnabled = null;
+ConVar g_cvLogMode = null;
 
 bool g_bLateLoad = false;
 bool g_bCoreAvailable = false;
@@ -34,6 +35,8 @@ bool g_bBaseCommAvailable = false;
 bool g_bBanSystemCommAvailable = false;
 bool g_bSourceCommsAvailable = false;
 bool g_bVoiceBlocked[MAXPLAYERS + 1];
+L4D2CommGuardProvider g_eLastLoggedProvider = Provider_None;
+bool g_bLastLoggedProviderValid = false;
 char g_sLogPath[PLATFORM_MAX_PATH];
 
 Handle g_fwdChatBlockCheck = INVALID_HANDLE;
@@ -67,6 +70,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 
 public void OnPluginStart()
 {
+	g_cvLogMode = L4D2CS_EnsureLogModeConVar();
 	g_cvDebugMask = CreateConVar("l4d2_commguard_debug_mask", "0", "Debug bitmask. 1=general 2=provider 4=external (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvChatEnabled = CreateConVar("l4d2_commguard_chat_enabled", "1", "Enable chat guard checks.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvVoiceEnabled = CreateConVar("l4d2_commguard_voice_enabled", "1", "Enable voice guard checks.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -82,6 +86,7 @@ public void OnPluginStart()
 
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_commguard", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
+	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_COMMGUARD_VERSION);
 	L4D2CommGuard_LogFormatted(Debug_General, "debug", "Plugin started. version=%s", L4D2_COMMGUARD_VERSION);
 }
 
@@ -242,7 +247,7 @@ public any Native_L4D2CommGuard_GetActiveProvider(Handle plugin, int numParams)
 
 bool L4D2CommGuard_DebugEnabled(L4D2CommGuardDebugMask debugMask)
 {
-	return g_cvDebugMask != null && (g_cvDebugMask.IntValue & view_as<int>(debugMask)) != 0;
+	return L4D2CS_DebugMaskEnabled(g_cvLogMode, g_cvDebugMask, view_as<int>(debugMask));
 }
 
 void L4D2CommGuard_LogLine(const char[] tag, const char[] message)
@@ -300,7 +305,25 @@ void L4D2CommGuard_RefreshLibraryState()
 	g_bBanSystemCommAvailable = LibraryExists(L4D2_COMMSUITE_BANSYSTEM_COMM_LIBRARY);
 	g_bSourceCommsAvailable = LibraryExists(L4D2_COMMSUITE_SOURCECOMMS_LIBRARY);
 
-	if (L4D2CommGuard_GetActiveProviderInternal() == Provider_None)
+	L4D2CommGuardProvider activeProvider = L4D2CommGuard_GetActiveProviderInternal();
+	if (!g_bLastLoggedProviderValid || g_eLastLoggedProvider != activeProvider)
+	{
+		if (activeProvider == Provider_None)
+		{
+			L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, "provider", "active=none loaded_mask=%d", view_as<int>(L4D2CommGuard_GetLoadedProviderMaskInternal()));
+		}
+		else
+		{
+			char providerName[32];
+			L4D2CommGuard_FormatProviderName(activeProvider, providerName, sizeof(providerName));
+			L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, "provider", "active=%s loaded_mask=%d", providerName, view_as<int>(L4D2CommGuard_GetLoadedProviderMaskInternal()));
+		}
+
+		g_eLastLoggedProvider = activeProvider;
+		g_bLastLoggedProviderValid = true;
+	}
+
+	if (activeProvider == Provider_None)
 	{
 		L4D2CommGuard_LogFormatted(Debug_General, "debug", "No punishment provider loaded.");
 	}
@@ -656,6 +679,8 @@ void L4D2CommGuard_RefreshVoiceState(int client, bool verbose)
 	{
 		L4D2CommGuard_LogFormatted(Debug_General, "debug", "voice: block state changed for %N -> %d", client, blocked);
 	}
+
+	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, "state", "subject=voice_block client=%N blocked=%d", client, blocked ? 1 : 0);
 
 	if (g_fwdVoiceBlockChanged != INVALID_HANDLE)
 	{

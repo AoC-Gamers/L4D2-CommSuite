@@ -29,6 +29,7 @@ ConVar g_cvVoiceDefaultEnabled = null;
 ConVar g_cvVoiceSurvivor = null;
 ConVar g_cvVoiceInfected = null;
 ConVar g_cvAllTalk = null;
+ConVar g_cvLogMode = null;
 
 Handle g_hCookieVoiceEnabled = INVALID_HANDLE;
 
@@ -59,6 +60,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 
 public void OnPluginStart()
 {
+	g_cvLogMode = L4D2CS_EnsureLogModeConVar();
 	g_cvDebugMask = CreateConVar("l4d2_commrelay_debug_mask", "0", "Debug bitmask. 1=general 2=chat 4=voice (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvChatEnabled = CreateConVar("l4d2_commrelay_chat_enabled", "1", "Enable chat relay handling.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvChatSpecTeam = CreateConVar("l4d2_commrelay_chat_spec_team", "0", "Relay survivor and infected team chat to spectators.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -87,6 +89,7 @@ public void OnPluginStart()
 	HookConVarChange(g_cvChatEnabled, Relay_OnConVarChanged);
 	HookConVarChange(g_cvChatSpecTeam, Relay_OnConVarChanged);
 	HookConVarChange(g_cvChatSourceTVTeam, Relay_OnConVarChanged);
+	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, "startup", "Plugin started. version=%s core=%d guard=%d", L4D2_COMMRELAY_VERSION, g_bCoreAvailable ? 1 : 0, g_bCommGuardAvailable ? 1 : 0);
 
 	HookEvent("player_team", Event_PlayerTeam, EventHookMode_Post);
 
@@ -266,6 +269,7 @@ public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, con
 
 public void L4D2CommGuard_OnClientVoiceBlockChanged(int client, bool blocked)
 {
+	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, "state", "subject=voice_block client=%N blocked=%d", client, blocked ? 1 : 0);
 	Relay_LogFormatted(Debug_Voice, "voice", "Voice block state changed. client=%d blocked=%d", client, blocked);
 	QueueRefreshAllVoiceOverrides();
 }
@@ -402,7 +406,7 @@ void Relay_OnConVarChanged(ConVar convar, const char[] oldValue, const char[] ne
 
 bool DebugEnabled(RelayDebugMask debugMask)
 {
-	return g_cvDebugMask != null && (g_cvDebugMask.IntValue & view_as<int>(debugMask)) != 0;
+	return L4D2CS_DebugMaskEnabled(g_cvLogMode, g_cvDebugMask, view_as<int>(debugMask));
 }
 
 /**

@@ -1,6 +1,6 @@
 /**
  * L4D2 CommCore
- * Version: 0.1.0
+ * Version: 0.2.0
  *
  * Public core API for centralized communication hooks in Left 4 Dead 2.
  * The current implementation covers chat input and chat-related noise.
@@ -14,7 +14,7 @@
 #include <left4dhooks_stocks>
 
 #define L4D2_COMMCORE_LIBRARY "l4d2_commcore"
-#define L4D2_COMMCORE_VERSION "0.1.0"
+#define L4D2_COMMCORE_VERSION "0.2.0"
 
 enum L4D2CommChannel
 {

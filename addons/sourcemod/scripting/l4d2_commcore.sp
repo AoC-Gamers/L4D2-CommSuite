@@ -16,6 +16,7 @@ enum L4D2CommDebugMask
 
 ConVar g_cvL4D2Comm_DebugMask = null;
 ConVar g_cvL4D2Comm_NoiseEnabled = null;
+ConVar g_cvL4D2Comm_LogMode = null;
 
 bool g_bL4D2Comm_CoreReady = false;
 char g_sLogPath[PLATFORM_MAX_PATH];
@@ -52,6 +53,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 
 public void OnPluginStart()
 {
+	g_cvL4D2Comm_LogMode = L4D2CS_EnsureLogModeConVar();
 	g_cvL4D2Comm_DebugMask = CreateConVar("l4d2_commcore_debug_mask", "0", "Debug bitmask. 1=general 2=hook 4=noise (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvL4D2Comm_NoiseEnabled = CreateConVar("l4d2_commcore_noise_enabled", "1", "Enable communication noise filtering hooks.", FCVAR_NONE, true, 0.0, true, 1.0);
 	L4D2CS_BuildLogPath("l4d2_commcore.log", g_sLogPath, sizeof(g_sLogPath));
@@ -59,6 +61,7 @@ public void OnPluginStart()
 	L4D2Comm_InitHooks();
 	L4D2Comm_InitCommands();
 	L4D2Comm_SetCoreReady(true);
+	L4D2CS_NormalLogToFileEx(g_cvL4D2Comm_LogMode, L4D2_COMMSUITE_COMMCORE_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_COMMCORE_VERSION);
 	L4D2Comm_Debug("Plugin started. version=%s", L4D2_COMMCORE_VERSION);
 
 	L4D2CS_EnsureAutoExecFolder();
