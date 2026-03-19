@@ -69,6 +69,24 @@ jobs:
       - name: Build SourceMod artifact
         run: bash ./scripts/ci-build-sourcemod.sh
 
+      - name: Validate plugin artifact layout
+        shell: bash
+        run: |
+          plugin_dir="dist/sourcemod/artifact/addons/sourcemod/plugins/l4d2_commsuite"
+
+          test -d "$plugin_dir"
+
+          for plugin in \
+            l4d2_commcore.smx \
+            l4d2_commguard.smx \
+            l4d2_commrelay.smx \
+            l4d2_chatnoise.smx \
+            l4d2_chatlog.smx
+          do
+            test -f "$plugin_dir/$plugin"
+            test ! -f "dist/sourcemod/artifact/addons/sourcemod/plugins/$plugin"
+          done
+
       - name: Package release assets
         env:
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}

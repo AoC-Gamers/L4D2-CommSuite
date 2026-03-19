@@ -20,9 +20,10 @@ SPCOMP_BIN="$SOURCEMOD_DIR/addons/sourcemod/scripting/spcomp"
 SOURCEMOD_INCLUDE_DIR="$SOURCEMOD_DIR/addons/sourcemod/scripting/include"
 LOCAL_INCLUDE_DIR="$ROOT_DIR/addons/sourcemod/scripting/include"
 PACKAGE_SM_DIR="$ARTIFACT_DIR/addons/sourcemod"
+PACKAGE_PLUGIN_DIR="$PACKAGE_SM_DIR/plugins/l4d2_commsuite"
 COMPILE_LOG="$ARTIFACT_DIR/compile.log"
 
-mkdir -p "$PACKAGE_SM_DIR/plugins"
+mkdir -p "$PACKAGE_PLUGIN_DIR"
 : > "$COMPILE_LOG"
 
 compile_plugin() {
@@ -38,11 +39,11 @@ compile_plugin() {
     2>&1 | tee -a "$COMPILE_LOG"
 }
 
-compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_commcore.sp" "$PACKAGE_SM_DIR/plugins/l4d2_commcore.smx"
-compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_commguard.sp" "$PACKAGE_SM_DIR/plugins/l4d2_commguard.smx"
-compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_commrelay.sp" "$PACKAGE_SM_DIR/plugins/l4d2_commrelay.smx"
-compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_chatnoise.sp" "$PACKAGE_SM_DIR/plugins/l4d2_chatnoise.smx"
-compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_chatlog.sp" "$PACKAGE_SM_DIR/plugins/l4d2_chatlog.smx"
+compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_commcore.sp" "$PACKAGE_PLUGIN_DIR/l4d2_commcore.smx"
+compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_commguard.sp" "$PACKAGE_PLUGIN_DIR/l4d2_commguard.smx"
+compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_commrelay.sp" "$PACKAGE_PLUGIN_DIR/l4d2_commrelay.smx"
+compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_chatnoise.sp" "$PACKAGE_PLUGIN_DIR/l4d2_chatnoise.smx"
+compile_plugin "$ROOT_DIR/addons/sourcemod/scripting/l4d2_chatlog.sp" "$PACKAGE_PLUGIN_DIR/l4d2_chatlog.smx"
 
 for plugin in \
   l4d2_commcore.smx \
@@ -51,7 +52,7 @@ for plugin in \
   l4d2_chatnoise.smx \
   l4d2_chatlog.smx
 do
-  if [[ ! -f "$PACKAGE_SM_DIR/plugins/$plugin" ]]; then
+  if [[ ! -f "$PACKAGE_PLUGIN_DIR/$plugin" ]]; then
     echo "Compiled plugin was not generated: $plugin" >&2
     exit 1
   fi
