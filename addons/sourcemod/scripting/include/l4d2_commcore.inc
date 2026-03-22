@@ -23,7 +23,8 @@ enum L4D2CommChannel
 };
 
 /**
- * Returns whether the core finished its startup path.
+ * Returns whether the core finished its local startup path.
+ * This means hooks, commands and autoexec generation were initialized.
  *
  * @return              True if the core is ready.
  */
@@ -142,26 +143,12 @@ forward Action L4D2Comm_OnTextMsgMessage(const char[] msgKey, const char[] param
  */
 forward Action L4D2Comm_OnSayText2Message(const char[] msgKey, const char[] param1, const char[] param2, const char[] param3, const char[] param4, int firstTarget, int playersNum, bool reliable, bool init);
 
-#define L4D2ChatChannel L4D2CommChannel
-#define L4D2ChatChannel_Public L4D2CommChannel_Public
-#define L4D2ChatChannel_Team L4D2CommChannel_Team
-#define L4D2CC_IsCoreReady L4D2Comm_IsCoreReady
-#define L4D2CC_OnChatMessage L4D2Comm_OnChatMessage
-#define L4D2CC_OnChatMessage_Post L4D2Comm_OnChatMessage_Post
-#define L4D2CC_OnServerCvarMessage L4D2Comm_OnServerCvarMessage
-#define L4D2CC_OnPlayerConnectMessage L4D2Comm_OnPlayerConnectMessage
-#define L4D2CC_OnPlayerDisconnectMessage L4D2Comm_OnPlayerDisconnectMessage
-#define L4D2CC_OnPlayerNameChangeMessage L4D2Comm_OnPlayerNameChangeMessage
-#define L4D2CC_OnPlayerTeamMessage L4D2Comm_OnPlayerTeamMessage
-#define L4D2CC_OnTextMsgMessage L4D2Comm_OnTextMsgMessage
-#define L4D2CC_OnSayText2Message L4D2Comm_OnSayText2Message
-
 public SharedPlugin __pl_l4d2_commcore =
 {
 	name = "l4d2_commcore",
 	file = "l4d2_commcore.smx",
 	#if defined REQUIRE_PLUGIN
-	required = 1
+	required = 1,
 	#else
 	required = 0
 	#endif
@@ -171,6 +158,5 @@ public SharedPlugin __pl_l4d2_commcore =
 public void __pl_l4d2_commcore_SetNTVOptional()
 {
 	MarkNativeAsOptional("L4D2Comm_IsCoreReady");
-	MarkNativeAsOptional("L4D2CC_IsCoreReady");
 }
 #endif

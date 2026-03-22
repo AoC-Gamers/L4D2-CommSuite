@@ -38,6 +38,10 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 	Action result = L4D2Comm_CallChatPreForward(client, channel, sArgs);
 	if (result >= Plugin_Handled)
 	{
+		L4D2Comm_QueueSuppressedChatPost(client, channel, sArgs);
+	}
+	if (result >= Plugin_Handled)
+	{
 		L4D2Comm_Hook("Chat pre-forward blocked game call. client=%d command=%s result=%d", client, command, result);
 		return result;
 	}
@@ -47,7 +51,14 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)
 {
-	L4D2Comm_CallChatPostForward(client, L4D2Comm_GetChannelForCommand(command), sArgs);
+	L4D2CommChannel channel = L4D2Comm_GetChannelForCommand(command);
+	if (L4D2Comm_TakeSuppressedChatPost(client, channel, sArgs))
+	{
+		L4D2Comm_Hook("Chat post-forward suppressed. client=%d command=%s", client, command);
+		return;
+	}
+
+	L4D2Comm_CallChatPostForward(client, channel, sArgs);
 }
 
 public Action L4D2Comm_Event_ServerCvar(Event event, const char[] name, bool dontBroadcast)

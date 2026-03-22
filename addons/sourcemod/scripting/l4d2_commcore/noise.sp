@@ -101,6 +101,11 @@ Action L4D2Comm_HandleNoiseUserMessage_SayText2(UserMsg msg_id, BfRead msg, cons
 		return Plugin_Continue;
 	}
 
+	msgKey[0] = '\0';
+	msgParam1[0] = '\0';
+	msgParam2[0] = '\0';
+	msgParam3[0] = '\0';
+	msgParam4[0] = '\0';
 	msg.ReadByte();
 	msg.ReadByte();
 	msg.ReadString(msgKey, sizeof(msgKey), false);
@@ -108,6 +113,12 @@ Action L4D2Comm_HandleNoiseUserMessage_SayText2(UserMsg msg_id, BfRead msg, cons
 	msg.ReadString(msgParam2, sizeof(msgParam2), false);
 	msg.ReadString(msgParam3, sizeof(msgParam3), false);
 	msg.ReadString(msgParam4, sizeof(msgParam4), false);
+
+	if (msgKey[0] == '\0' && msgParam1[0] == '\0' && msgParam2[0] == '\0' && msgParam3[0] == '\0' && msgParam4[0] == '\0')
+	{
+		L4D2Comm_Noise("%s usermessage payload decoded as empty. players=%d reliable=%d init=%d", msgName, playersNum, reliable, init);
+		return Plugin_Continue;
+	}
 
 	int firstClient = playersNum > 0 ? players[0] : 0;
 	Action result = L4D2Comm_CallSayText2Forward(msgKey, msgParam1, msgParam2, msgParam3, msgParam4, firstClient, playersNum, reliable, init);
@@ -148,12 +159,23 @@ Action L4D2Comm_HandleNoiseUserMessage_TextMsg(UserMsg msg_id, BfRead msg, const
 		return Plugin_Continue;
 	}
 
+	msgKey[0] = '\0';
+	msgParam1[0] = '\0';
+	msgParam2[0] = '\0';
+	msgParam3[0] = '\0';
+	msgParam4[0] = '\0';
 	msg.ReadByte();
 	msg.ReadString(msgKey, sizeof(msgKey), false);
 	msg.ReadString(msgParam1, sizeof(msgParam1), false);
 	msg.ReadString(msgParam2, sizeof(msgParam2), false);
 	msg.ReadString(msgParam3, sizeof(msgParam3), false);
 	msg.ReadString(msgParam4, sizeof(msgParam4), false);
+
+	if (msgKey[0] == '\0' && msgParam1[0] == '\0' && msgParam2[0] == '\0' && msgParam3[0] == '\0' && msgParam4[0] == '\0')
+	{
+		L4D2Comm_Noise("%s usermessage payload decoded as empty. players=%d reliable=%d init=%d", msgName, playersNum, reliable, init);
+		return Plugin_Continue;
+	}
 
 	int firstClient = playersNum > 0 ? players[0] : 0;
 	Action result = L4D2Comm_CallTextMsgForward(msgKey, msgParam1, msgParam2, msgParam3, msgParam4, firstClient, playersNum, reliable, init);

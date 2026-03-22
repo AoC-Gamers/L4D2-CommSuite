@@ -6,6 +6,7 @@ Consolidacion operativa de logging y ajuste de ruido para `L4D2-CommSuite`.
 
 - `l4d2_commcore`
   - expone version `0.2.0` para la API publica del core
+  - elimina aliases legacy `L4D2CC_*` y `L4D2ChatChannel*`; la API publica queda solo con `L4D2Comm_*`
 - `l4d2_commguard`
   - agrega log normal de startup, provider activo y cambios efectivos de estado de voz
   - elimina logs normales de librerias para reducir ruido

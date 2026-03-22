@@ -58,6 +58,49 @@ void L4D2Comm_CallChatPostForward(int client, L4D2CommChannel channel, const cha
 	Call_Finish();
 }
 
+void L4D2Comm_BuildSuppressedChatSignature(int client, L4D2CommChannel channel, const char[] text, char[] buffer, int maxlen)
+{
+	Format(buffer, maxlen, "%d|%d|%s", client, channel, text);
+}
+
+void L4D2Comm_QueueSuppressedChatPost(int client, L4D2CommChannel channel, const char[] text)
+{
+	if (g_aL4D2Comm_SuppressedChatPosts == null)
+	{
+		return;
+	}
+
+	char signature[384];
+	L4D2Comm_BuildSuppressedChatSignature(client, channel, text, signature, sizeof(signature));
+	g_aL4D2Comm_SuppressedChatPosts.PushString(signature);
+}
+
+bool L4D2Comm_TakeSuppressedChatPost(int client, L4D2CommChannel channel, const char[] text)
+{
+	if (g_aL4D2Comm_SuppressedChatPosts == null || g_aL4D2Comm_SuppressedChatPosts.Length == 0)
+	{
+		return false;
+	}
+
+	char signature[384];
+	char queuedSignature[384];
+	L4D2Comm_BuildSuppressedChatSignature(client, channel, text, signature, sizeof(signature));
+
+	for (int i = 0; i < g_aL4D2Comm_SuppressedChatPosts.Length; i++)
+	{
+		g_aL4D2Comm_SuppressedChatPosts.GetString(i, queuedSignature, sizeof(queuedSignature));
+		if (!StrEqual(queuedSignature, signature))
+		{
+			continue;
+		}
+
+		g_aL4D2Comm_SuppressedChatPosts.Erase(i);
+		return true;
+	}
+
+	return false;
+}
+
 Action L4D2Comm_CallServerCvarForward(const char[] cvarName, const char[] cvarValue)
 {
 	if (g_hL4D2Comm_FwdOnServerCvarMessage == INVALID_HANDLE)
