@@ -202,6 +202,11 @@ stock void L4D2CS_BuildLogPath(const char[] fileName, char[] buffer, int maxlen)
 	BuildPath(Path_SM, buffer, maxlen, "%s/%s", L4D2_COMMSUITE_LOG_FOLDER_PATH, fileName);
 }
 
+stock void L4D2CS_EnsureDebugLogPathReady()
+{
+	L4D2CS_EnsureLogFolder();
+}
+
 stock void L4D2CS_BuildNormalLogPath(char[] buffer, int maxlen)
 {
 	L4D2CS_EnsureSMLogsFolder();

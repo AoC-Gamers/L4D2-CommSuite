@@ -266,6 +266,7 @@ bool L4D2CommGuard_DebugEnabled(L4D2CommGuardDebugMask debugMask)
 
 void L4D2CommGuard_LogLine(const char[] tag, const char[] message)
 {
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, tag, message);
 }
 
@@ -306,6 +307,7 @@ void L4D2CommGuard_LogFormatted(L4D2CommGuardDebugMask debugMask, const char[] t
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
+	L4D2CS_EnsureDebugLogPathReady();
 	L4D2CommGuard_LogLine(tag, buffer);
 }
 

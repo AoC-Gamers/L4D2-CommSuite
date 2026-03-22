@@ -89,6 +89,7 @@ bool L4D2CN_DebugEnabled(int bit)
 
 void L4D2CN_LogLine(const char[] tag, const char[] message)
 {
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_CHATNOISE_LOG_PREFIX, tag, message);
 }
 

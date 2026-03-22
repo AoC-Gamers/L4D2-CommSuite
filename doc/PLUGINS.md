@@ -23,8 +23,9 @@ Library publica:
 Hooks principales de chat:
 
 - `L4D2Comm_OnChatMessage`
+- `L4D2Comm_OnChatRender`
 - `L4D2Comm_OnChatMessage_Blocked`
-- `L4D2Comm_OnChatMessage_Post`
+- `L4D2Comm_OnChatMessage_Rendered_Post`
 
 ## l4d2_commguard
 

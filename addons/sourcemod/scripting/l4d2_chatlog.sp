@@ -245,7 +245,7 @@ public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBr
 	return Plugin_Continue;
 }
 
-public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, const char[] text)
+public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text)
 {
 	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
@@ -263,9 +263,9 @@ public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, con
 	}
 
 	char line[1024];
-	FormatChatLine(client, channel, text, line, sizeof(line));
+	FormatRenderedChatLine(client, channel, prefix, name, text, line, sizeof(line));
 	WriteMessage(line);
-	LogFormatted(Debug_Write, "write", "Logged chat. client=%d channel=%d text=%s", client, channel, text);
+	LogFormatted(Debug_Write, "write", "Logged chat. client=%d channel=%d prefix=%s name=%s text=%s", client, channel, prefix, name, text);
 }
 
 public void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel, const char[] text)
@@ -349,6 +349,7 @@ void LogFormatted(DebugMask bit, const char[] tag, const char[] format, any ...)
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, tag, buffer);
 }
 
@@ -943,7 +944,7 @@ void GetIdentityFields(int client, char[] steam2, int steam2Len, char[] steam64,
 	}
 }
 
-void FormatChatLine(int client, L4D2CommChannel channel, const char[] text, char[] buffer, int maxlen)
+void FormatRenderedChatLine(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text, char[] buffer, int maxlen)
 {
 	char timestamp[64];
 	char teamLabel[16];
@@ -962,12 +963,12 @@ void FormatChatLine(int client, L4D2CommChannel channel, const char[] text, char
 
 	if (client == 0)
 	{
-		FormatEx(buffer, maxlen, "[%s] [CONSOLE][%s] : %s", timestamp, channelLabel, text);
+		FormatEx(buffer, maxlen, "[%s] [CONSOLE][%s] %s%s : %s", timestamp, channelLabel, prefix, name, text);
 		return;
 	}
 
 	L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
-	FormatEx(buffer, maxlen, "[%s] [%s][%s] %N : %s", timestamp, teamLabel, channelLabel, client, text);
+	FormatEx(buffer, maxlen, "[%s] [%s][%s] %s%s : %s", timestamp, teamLabel, channelLabel, prefix, name, text);
 }
 
 void FormatBlockedChatLine(int client, L4D2CommChannel channel, const char[] text, char[] buffer, int maxlen)

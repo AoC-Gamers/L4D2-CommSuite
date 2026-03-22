@@ -23,8 +23,10 @@ char g_sLogPath[PLATFORM_MAX_PATH];
 ArrayList g_aL4D2Comm_SuppressedChatPosts = null;
 
 Handle g_hL4D2Comm_FwdOnChatMessage = INVALID_HANDLE;
+Handle g_hL4D2Comm_FwdOnChatRender = INVALID_HANDLE;
 Handle g_hL4D2Comm_FwdOnChatMessageBlocked = INVALID_HANDLE;
 Handle g_hL4D2Comm_FwdOnChatMessagePost = INVALID_HANDLE;
+Handle g_hL4D2Comm_FwdOnChatMessageRenderedPost = INVALID_HANDLE;
 Handle g_hL4D2Comm_FwdOnServerCvarMessage = INVALID_HANDLE;
 Handle g_hL4D2Comm_FwdOnPlayerConnectMessage = INVALID_HANDLE;
 Handle g_hL4D2Comm_FwdOnPlayerDisconnectMessage = INVALID_HANDLE;
@@ -92,6 +94,11 @@ void L4D2Comm_RegisterNatives()
 		g_hL4D2Comm_FwdOnChatMessage = CreateGlobalForward("L4D2Comm_OnChatMessage", ET_Hook, Param_Cell, Param_Cell, Param_String);
 	}
 
+	if (g_hL4D2Comm_FwdOnChatRender == INVALID_HANDLE)
+	{
+		g_hL4D2Comm_FwdOnChatRender = CreateGlobalForward("L4D2Comm_OnChatRender", ET_Hook, Param_Cell, Param_Cell, Param_String, Param_String, Param_String);
+	}
+
 	if (g_hL4D2Comm_FwdOnChatMessageBlocked == INVALID_HANDLE)
 	{
 		g_hL4D2Comm_FwdOnChatMessageBlocked = CreateGlobalForward("L4D2Comm_OnChatMessage_Blocked", ET_Ignore, Param_Cell, Param_Cell, Param_String);
@@ -100,6 +107,11 @@ void L4D2Comm_RegisterNatives()
 	if (g_hL4D2Comm_FwdOnChatMessagePost == INVALID_HANDLE)
 	{
 		g_hL4D2Comm_FwdOnChatMessagePost = CreateGlobalForward("L4D2Comm_OnChatMessage_Post", ET_Ignore, Param_Cell, Param_Cell, Param_String);
+	}
+
+	if (g_hL4D2Comm_FwdOnChatMessageRenderedPost == INVALID_HANDLE)
+	{
+		g_hL4D2Comm_FwdOnChatMessageRenderedPost = CreateGlobalForward("L4D2Comm_OnChatMessage_Rendered_Post", ET_Ignore, Param_Cell, Param_Cell, Param_String, Param_String, Param_String);
 	}
 
 	if (g_hL4D2Comm_FwdOnServerCvarMessage == INVALID_HANDLE)

@@ -24,7 +24,7 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 ## Diseño
 
 - `commcore` es el dueño del hot path de texto.
-- `commcore` expone un modelo de hooks `pre / blocked / post` para chat.
+- `commcore` expone un modelo de hooks `pre / render / blocked / rendered-post` para chat.
 - `commguard` expone un modelo de voz `pre-check / resolved / changed` para el estado efectivo de bloqueo.
 - `commguard` y `commrelay` unifican las capas transversales de restricciones y relay.
 - `chatnoise` y `chatlog` siguen como satelites especificos de texto.
@@ -45,6 +45,9 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
   - `l4d2_commcore`
   - `l4d2_chatlog`
   - opcionalmente auditoria de intentos de chat bloqueados con `l4d2_chatlog_log_blocked 1`
+- Transformacion de chat por satelite:
+  - `l4d2_commcore`
+  - un satelite de render como `VIP_Tag`
 
 ## Documentacion
 

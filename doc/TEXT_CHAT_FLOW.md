@@ -116,19 +116,24 @@ Beneficio:
 
 ## Modelo de hooks de CommSuite
 
-Para chat de jugadores, `l4d2_commcore` expone tres momentos claros:
+Para chat de jugadores, `l4d2_commcore` expone cuatro momentos claros:
 
 - `L4D2Comm_OnChatMessage`
   - pre-hook del hot path
   - si algun plugin devuelve `Plugin_Handled` o `Plugin_Stop`, el chat no se emite
+- `L4D2Comm_OnChatRender`
+  - etapa de transformacion
+  - permite modificar prefijo, nombre mostrado o texto
+  - si algun plugin devuelve `Plugin_Changed`, el core suprime el chat del juego y emite el mensaje renderizado por su cuenta
 - `L4D2Comm_OnChatMessage_Blocked`
   - post de rechazo
   - sirve para auditoria o reacciones ante mensajes bloqueados
-- `L4D2Comm_OnChatMessage_Post`
-  - post de exito
-  - solo corre si el juego realmente siguio con la emision
+- `L4D2Comm_OnChatMessage_Rendered_Post`
+  - post de exito final
+  - corre tanto para el camino normal del juego como para mensajes transformados por el core
 
 Implicacion:
 - `commguard` debe seguir validando en `L4D2Comm_OnChatMessage`
-- `commrelay` debe seguir observando solo `L4D2Comm_OnChatMessage_Post`
+- satelites de render como `VIP_Tag` deben vivir en `L4D2Comm_OnChatRender`
+- `commrelay` y `chatlog` deben observar el post renderizado final
 - `chatlog` puede elegir entre auditar mensajes emitidos, mensajes bloqueados o ambos

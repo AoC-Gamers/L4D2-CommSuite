@@ -208,7 +208,7 @@ public void OnClientCookiesCached(int client)
 	}
 }
 
-public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, const char[] text)
+public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text)
 {
 	if (!g_bCoreAvailable || g_cvChatEnabled == null || !g_cvChatEnabled.BoolValue)
 	{
@@ -242,10 +242,10 @@ public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, con
 			continue;
 		}
 
-		CPrintToChatEx(target, client, "{olive}(%s){default} {teamcolor}%N{default}: %s", teamLabel, client, text);
+		CPrintToChatEx(target, client, "{olive}(%s){default} %s{teamcolor}%s{default}: %s", teamLabel, prefix, name, text);
 	}
 
-	Relay_LogFormatted(Debug_Chat, "chat", "Relayed team chat. author=%N team=%d text=%s", client, authorTeam, text);
+	Relay_LogFormatted(Debug_Chat, "chat", "Relayed team chat. author=%N team=%d prefix=%s name=%s text=%s", client, authorTeam, prefix, name, text);
 }
 
 public void L4D2CommGuard_OnClientVoiceBlockChanged(int client, bool blocked)
@@ -405,6 +405,7 @@ void Relay_LogFormatted(RelayDebugMask debugMask, const char[] tag, const char[]
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, tag, buffer);
 }
 

@@ -44,6 +44,24 @@ native bool L4D2Comm_IsCoreReady();
 forward Action L4D2Comm_OnChatMessage(int client, L4D2CommChannel channel, const char[] text);
 
 /**
+ * Fired after the pre hook but before the core lets the game emit the chat.
+ *
+ * Plugins may modify `prefix`, `name` or `text` and return `Plugin_Changed`.
+ * In that case, the core suppresses the game chat call and emits the rendered
+ * message itself.
+ *
+ * Returning `Plugin_Handled` or `Plugin_Stop` from this hook blocks the chat.
+ *
+ * @param client        Client index.
+ * @param channel       Chat channel.
+ * @param prefix        Mutable prefix buffer.
+ * @param name          Mutable display-name buffer.
+ * @param text          Mutable chat-text buffer.
+ * @return              Action result.
+ */
+forward Action L4D2Comm_OnChatRender(int client, L4D2CommChannel channel, char[] prefix, char[] name, char[] text);
+
+/**
  * Fired after the pre hook blocked the game chat call.
  *
  * This forward fires for blocked chat attempts regardless of whether the
@@ -63,6 +81,21 @@ forward void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel,
  * @param text          Chat text.
  */
 forward void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, const char[] text);
+
+/**
+ * Fired after the final rendered chat message succeeds.
+ *
+ * This forward runs both for the default game path and for transformed chat
+ * emitted manually by the core after `L4D2Comm_OnChatRender` returns
+ * `Plugin_Changed`.
+ *
+ * @param client        Client index.
+ * @param channel       Chat channel.
+ * @param prefix        Final rendered prefix.
+ * @param name          Final rendered display name.
+ * @param text          Final rendered chat text.
+ */
+forward void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text);
 
 /**
  * Fired when the core intercepts the "server_cvar" event in pre mode.
