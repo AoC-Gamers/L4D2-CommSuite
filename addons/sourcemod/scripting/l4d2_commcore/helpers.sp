@@ -58,6 +58,20 @@ void L4D2Comm_CallChatPostForward(int client, L4D2CommChannel channel, const cha
 	Call_Finish();
 }
 
+void L4D2Comm_CallChatBlockedForward(int client, L4D2CommChannel channel, const char[] text)
+{
+	if (g_hL4D2Comm_FwdOnChatMessageBlocked == INVALID_HANDLE)
+	{
+		return;
+	}
+
+	Call_StartForward(g_hL4D2Comm_FwdOnChatMessageBlocked);
+	Call_PushCell(client);
+	Call_PushCell(channel);
+	Call_PushString(text);
+	Call_Finish();
+}
+
 void L4D2Comm_BuildSuppressedChatSignature(int client, L4D2CommChannel channel, const char[] text, char[] buffer, int maxlen)
 {
 	Format(buffer, maxlen, "%d|%d|%s", client, channel, text);

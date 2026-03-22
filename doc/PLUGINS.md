@@ -20,6 +20,12 @@ Library publica:
 
 - `l4d2_commcore`
 
+Hooks principales de chat:
+
+- `L4D2Comm_OnChatMessage`
+- `L4D2Comm_OnChatMessage_Blocked`
+- `L4D2Comm_OnChatMessage_Post`
+
 ## l4d2_commguard
 
 Rol:
@@ -46,6 +52,12 @@ ConVars principales:
 Library publica:
 
 - `l4d2_commguard`
+
+Hooks principales de voz:
+
+- `L4D2CommGuard_OnVoiceBlockCheck`
+- `L4D2CommGuard_OnVoiceBlockResolved`
+- `L4D2CommGuard_OnClientVoiceBlockChanged`
 
 ## l4d2_commrelay
 
@@ -128,6 +140,7 @@ ConVars principales:
 - `l4d2_chatlog_enabled`
 - `l4d2_chatlog_log_public`
 - `l4d2_chatlog_log_team`
+- `l4d2_chatlog_log_blocked`
 - `l4d2_chatlog_log_console`
 - `l4d2_chatlog_log_connect`
 - `l4d2_chatlog_log_disconnect`

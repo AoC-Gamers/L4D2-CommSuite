@@ -34,7 +34,7 @@ native bool L4D2Comm_IsCoreReady();
  * Fired before the game chat function continues.
  *
  * Returning Plugin_Handled blocks the game chat call.
- * Returning Plugin_Stop also blocks the post forward.
+ * Returning Plugin_Stop also blocks the success post forward.
  *
  * @param client        Client index.
  * @param channel       Chat channel.
@@ -44,7 +44,19 @@ native bool L4D2Comm_IsCoreReady();
 forward Action L4D2Comm_OnChatMessage(int client, L4D2CommChannel channel, const char[] text);
 
 /**
- * Fired after the game chat path continues.
+ * Fired after the pre hook blocked the game chat call.
+ *
+ * This forward fires for blocked chat attempts regardless of whether the
+ * pre hook returned Plugin_Handled or Plugin_Stop.
+ *
+ * @param client        Client index.
+ * @param channel       Chat channel.
+ * @param text          Chat text.
+ */
+forward void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel, const char[] text);
+
+/**
+ * Fired after the game chat path continues successfully.
  *
  * @param client        Client index.
  * @param channel       Chat channel.

@@ -40,6 +40,7 @@ char g_sLogPath[PLATFORM_MAX_PATH];
 
 Handle g_fwdChatBlockCheck = INVALID_HANDLE;
 Handle g_fwdVoiceBlockCheck = INVALID_HANDLE;
+Handle g_fwdVoiceBlockResolved = INVALID_HANDLE;
 Handle g_fwdVoiceBlockChanged = INVALID_HANDLE;
 
 public Plugin myinfo =
@@ -57,6 +58,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 
 	g_fwdChatBlockCheck = CreateGlobalForward("L4D2CommGuard_OnChatBlockCheck", ET_Hook, Param_Cell, Param_Cell, Param_String);
 	g_fwdVoiceBlockCheck = CreateGlobalForward("L4D2CommGuard_OnVoiceBlockCheck", ET_Hook, Param_Cell);
+	g_fwdVoiceBlockResolved = CreateGlobalForward("L4D2CommGuard_OnVoiceBlockResolved", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	g_fwdVoiceBlockChanged = CreateGlobalForward("L4D2CommGuard_OnClientVoiceBlockChanged", ET_Ignore, Param_Cell, Param_Cell);
 
 	CreateNative("L4D2CommGuard_IsClientChatBlocked", Native_L4D2CommGuard_IsClientChatBlocked);
@@ -681,7 +683,18 @@ void L4D2CommGuard_RefreshVoiceState(int client, bool verbose)
 	}
 
 	bool blocked = L4D2CommGuard_ShouldBlockVoice(client);
-	if (g_bVoiceBlocked[client] == blocked)
+	bool changed = g_bVoiceBlocked[client] != blocked;
+
+	if (g_fwdVoiceBlockResolved != INVALID_HANDLE)
+	{
+		Call_StartForward(g_fwdVoiceBlockResolved);
+		Call_PushCell(client);
+		Call_PushCell(blocked ? 1 : 0);
+		Call_PushCell(changed ? 1 : 0);
+		Call_Finish();
+	}
+
+	if (!changed)
 	{
 		return;
 	}

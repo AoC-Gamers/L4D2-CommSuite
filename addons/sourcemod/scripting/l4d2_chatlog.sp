@@ -23,6 +23,7 @@ ConVar g_cvDebugMask = null;
 ConVar g_cvEnabled = null;
 ConVar g_cvLogPublic = null;
 ConVar g_cvLogTeam = null;
+ConVar g_cvLogBlocked = null;
 ConVar g_cvLogConsole = null;
 ConVar g_cvLogFakeClients = null;
 ConVar g_cvLogConnect = null;
@@ -103,6 +104,7 @@ public void OnPluginStart()
 	g_cvEnabled = CreateConVar("l4d2_chatlog_enabled", "1", "Enable chat audit logging.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogPublic = CreateConVar("l4d2_chatlog_log_public", "1", "Log public chat messages.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogTeam = CreateConVar("l4d2_chatlog_log_team", "1", "Log team chat messages.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_cvLogBlocked = CreateConVar("l4d2_chatlog_log_blocked", "0", "Log blocked chat attempts.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogConsole = CreateConVar("l4d2_chatlog_log_console", "1", "Log console chat commands.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogFakeClients = CreateConVar("l4d2_chatlog_log_fakeclients", "0", "Log fake client chat and lifecycle entries.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogConnect = CreateConVar("l4d2_chatlog_log_connect", "1", "Log client joins.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -264,6 +266,29 @@ public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, con
 	FormatChatLine(client, channel, text, line, sizeof(line));
 	WriteMessage(line);
 	LogFormatted(Debug_Write, "write", "Logged chat. client=%d channel=%d text=%s", client, channel, text);
+}
+
+public void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel, const char[] text)
+{
+	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	{
+		return;
+	}
+
+	if (!ShouldLogBlockedChat(client, channel))
+	{
+		return;
+	}
+
+	if (client > 0 && IsClientInGame(client) && IsFakeClient(client) && (g_cvLogFakeClients == null || !g_cvLogFakeClients.BoolValue))
+	{
+		return;
+	}
+
+	char line[1024];
+	FormatBlockedChatLine(client, channel, text, line, sizeof(line));
+	WriteMessage(line);
+	LogFormatted(Debug_Write, "write", "Logged blocked chat. client=%d channel=%d text=%s", client, channel, text);
 }
 
 public Action L4D2Comm_OnPlayerNameChangeMessage(const char[] oldName, const char[] newName)
@@ -872,6 +897,26 @@ bool ShouldLogChat(int client, L4D2CommChannel channel)
 	return g_cvLogTeam != null && g_cvLogTeam.BoolValue;
 }
 
+bool ShouldLogBlockedChat(int client, L4D2CommChannel channel)
+{
+	if (g_cvLogBlocked == null || !g_cvLogBlocked.BoolValue)
+	{
+		return false;
+	}
+
+	if (channel == L4D2CommChannel_Public)
+	{
+		if (client == 0)
+		{
+			return g_cvLogConsole != null && g_cvLogConsole.BoolValue;
+		}
+
+		return true;
+	}
+
+	return true;
+}
+
 void GetIdentityFields(int client, char[] steam2, int steam2Len, char[] steam64, int steam64Len, char[] ip, int ipLen, char[] country, int countryLen)
 {
 	steam2[0] = '\0';
@@ -913,6 +958,33 @@ void FormatChatLine(int client, L4D2CommChannel channel, const char[] text, char
 	else
 	{
 		strcopy(channelLabel, sizeof(channelLabel), "PUBLIC");
+	}
+
+	if (client == 0)
+	{
+		FormatEx(buffer, maxlen, "[%s] [CONSOLE][%s] : %s", timestamp, channelLabel, text);
+		return;
+	}
+
+	L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
+	FormatEx(buffer, maxlen, "[%s] [%s][%s] %N : %s", timestamp, teamLabel, channelLabel, client, text);
+}
+
+void FormatBlockedChatLine(int client, L4D2CommChannel channel, const char[] text, char[] buffer, int maxlen)
+{
+	char timestamp[64];
+	char teamLabel[16];
+	char channelLabel[20];
+
+	GetTimestamp(timestamp, sizeof(timestamp));
+
+	if (channel == L4D2CommChannel_Team)
+	{
+		strcopy(channelLabel, sizeof(channelLabel), "TEAM-BLOCKED");
+	}
+	else
+	{
+		strcopy(channelLabel, sizeof(channelLabel), "PUBLIC-BLOCKED");
 	}
 
 	if (client == 0)

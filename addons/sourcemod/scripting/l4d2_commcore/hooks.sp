@@ -39,6 +39,7 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 	if (result >= Plugin_Handled)
 	{
 		L4D2Comm_QueueSuppressedChatPost(client, channel, sArgs);
+		L4D2Comm_CallChatBlockedForward(client, channel, sArgs);
 	}
 	if (result >= Plugin_Handled)
 	{

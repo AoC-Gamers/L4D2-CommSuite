@@ -177,3 +177,24 @@ Esto justifica que `l4d2_commrelay` use `SetListenOverride(receiver, sender, ...
 4. SourceMod se monta sobre esa capa y permite overrides por par `receiver/sender`.
 5. Para satelites como `l4d2_commrelay`, `SetListenOverride()` es la herramienta correcta.
 6. Para bloqueos de voz, `l4d2_commguard` tiene sentido como capa reutilizable sobre providers como `BaseComm`, `SourceComms++` o `BanSystem Comm`.
+
+## Modelo de hooks de voz en CommSuite
+
+Para voz, la suite no intenta gobernar un hot path equivalente a `say`.
+En cambio, `l4d2_commguard` expone el ciclo de resolucion del estado de voz:
+
+- `L4D2CommGuard_OnVoiceBlockCheck`
+  - pre-check para proveedores o satelites externos
+  - `Plugin_Handled` fuerza estado bloqueado
+- `L4D2CommGuard_OnVoiceBlockResolved`
+  - post de resolucion
+  - corre en cada rebuild del estado
+  - informa `blocked` y si hubo `changed`
+- `L4D2CommGuard_OnClientVoiceBlockChanged`
+  - post de delta real
+  - solo corre cuando cambia el estado cacheado
+
+Implicacion:
+- `commguard` sigue siendo el duenio del estado logico de voz
+- `commrelay` sigue siendo quien aplica la matriz efectiva con `SetListenOverride()`
+- no hace falta forzar un modelo `pre / blocked / post` identico al texto, porque la voz se resuelve por estado y no por evento individual de mensaje
