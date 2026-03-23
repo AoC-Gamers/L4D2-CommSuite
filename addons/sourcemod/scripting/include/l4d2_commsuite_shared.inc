@@ -3,6 +3,8 @@
 #endif
 #define _l4d2_commsuite_shared_included
 
+#include <left4dhooks_stocks>
+
 #define L4D2_COMMSUITE_AUTOEXEC_FOLDER "sourcemod/l4d2_commsuite"
 #define L4D2_COMMSUITE_AUTOEXEC_FOLDER_PATH "../../cfg/sourcemod/l4d2_commsuite"
 #define L4D2_COMMSUITE_SM_LOGS_FOLDER "logs"
@@ -33,6 +35,72 @@ enum L4D2CommSuiteLogMode
 stock bool IsHumanClient(int client)
 {
 	return client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client);
+}
+
+stock bool L4D2CS_IsValidClientIndex(int client)
+{
+	return client > 0 && client <= MaxClients;
+}
+
+stock bool L4D2CS_IsConnectedClient(int client)
+{
+	return L4D2CS_IsValidClientIndex(client) && IsClientConnected(client);
+}
+
+stock void L4D2CS_GetTeamLabel(L4DTeam team, char[] buffer, int maxlen)
+{
+	switch (team)
+	{
+		case L4DTeam_Spectator:
+		{
+			strcopy(buffer, maxlen, "Spectator");
+		}
+		case L4DTeam_Survivor:
+		{
+			strcopy(buffer, maxlen, "Survivor");
+		}
+		case L4DTeam_Infected:
+		{
+			strcopy(buffer, maxlen, "Infected");
+		}
+		default:
+		{
+			strcopy(buffer, maxlen, "Unknown");
+		}
+	}
+}
+
+stock int L4D2CS_GetCommandUserId(int client)
+{
+	if (L4D2CS_IsValidClientIndex(client))
+	{
+		return GetClientUserId(client);
+	}
+
+	return 0;
+}
+
+stock int L4D2CS_ResolveCommandClient(int userId)
+{
+	if (userId == 0)
+	{
+		return 0;
+	}
+
+	return GetClientOfUserId(userId);
+}
+
+stock void L4D2CS_PrintConsoleOrServer(int userId, const char[] line)
+{
+	int client = L4D2CS_ResolveCommandClient(userId);
+
+	if (client > 0)
+	{
+		PrintToConsole(client, "%s", line);
+		return;
+	}
+
+	PrintToServer("%s", line);
 }
 
 stock ConVar L4D2CS_EnsureLogModeConVar()
@@ -132,6 +200,11 @@ stock void L4D2CS_BuildLogPath(const char[] fileName, char[] buffer, int maxlen)
 {
 	L4D2CS_EnsureLogFolder();
 	BuildPath(Path_SM, buffer, maxlen, "%s/%s", L4D2_COMMSUITE_LOG_FOLDER_PATH, fileName);
+}
+
+stock void L4D2CS_EnsureDebugLogPathReady()
+{
+	L4D2CS_EnsureLogFolder();
 }
 
 stock void L4D2CS_BuildNormalLogPath(char[] buffer, int maxlen)

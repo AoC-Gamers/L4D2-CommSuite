@@ -23,7 +23,8 @@ enum L4D2CommChannel
 };
 
 /**
- * Returns whether the core finished its startup path.
+ * Returns whether the core finished its local startup path.
+ * This means hooks, commands and autoexec generation were initialized.
  *
  * @return              True if the core is ready.
  */
@@ -33,7 +34,7 @@ native bool L4D2Comm_IsCoreReady();
  * Fired before the game chat function continues.
  *
  * Returning Plugin_Handled blocks the game chat call.
- * Returning Plugin_Stop also blocks the post forward.
+ * Returning Plugin_Stop also blocks the success post forward.
  *
  * @param client        Client index.
  * @param channel       Chat channel.
@@ -43,13 +44,58 @@ native bool L4D2Comm_IsCoreReady();
 forward Action L4D2Comm_OnChatMessage(int client, L4D2CommChannel channel, const char[] text);
 
 /**
- * Fired after the game chat path continues.
+ * Fired after the pre hook but before the core lets the game emit the chat.
+ *
+ * Plugins may modify `prefix`, `name` or `text` and return `Plugin_Changed`.
+ * In that case, the core suppresses the game chat call and emits the rendered
+ * message itself.
+ *
+ * Returning `Plugin_Handled` or `Plugin_Stop` from this hook blocks the chat.
+ *
+ * @param client        Client index.
+ * @param channel       Chat channel.
+ * @param prefix        Mutable prefix buffer.
+ * @param name          Mutable display-name buffer.
+ * @param text          Mutable chat-text buffer.
+ * @return              Action result.
+ */
+forward Action L4D2Comm_OnChatRender(int client, L4D2CommChannel channel, char[] prefix, char[] name, char[] text);
+
+/**
+ * Fired after the pre hook blocked the game chat call.
+ *
+ * This forward fires for blocked chat attempts regardless of whether the
+ * pre hook returned Plugin_Handled or Plugin_Stop.
+ *
+ * @param client        Client index.
+ * @param channel       Chat channel.
+ * @param text          Chat text.
+ */
+forward void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel, const char[] text);
+
+/**
+ * Fired after the game chat path continues successfully.
  *
  * @param client        Client index.
  * @param channel       Chat channel.
  * @param text          Chat text.
  */
 forward void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, const char[] text);
+
+/**
+ * Fired after the final rendered chat message succeeds.
+ *
+ * This forward runs both for the default game path and for transformed chat
+ * emitted manually by the core after `L4D2Comm_OnChatRender` returns
+ * `Plugin_Changed`.
+ *
+ * @param client        Client index.
+ * @param channel       Chat channel.
+ * @param prefix        Final rendered prefix.
+ * @param name          Final rendered display name.
+ * @param text          Final rendered chat text.
+ */
+forward void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text);
 
 /**
  * Fired when the core intercepts the "server_cvar" event in pre mode.
@@ -142,26 +188,12 @@ forward Action L4D2Comm_OnTextMsgMessage(const char[] msgKey, const char[] param
  */
 forward Action L4D2Comm_OnSayText2Message(const char[] msgKey, const char[] param1, const char[] param2, const char[] param3, const char[] param4, int firstTarget, int playersNum, bool reliable, bool init);
 
-#define L4D2ChatChannel L4D2CommChannel
-#define L4D2ChatChannel_Public L4D2CommChannel_Public
-#define L4D2ChatChannel_Team L4D2CommChannel_Team
-#define L4D2CC_IsCoreReady L4D2Comm_IsCoreReady
-#define L4D2CC_OnChatMessage L4D2Comm_OnChatMessage
-#define L4D2CC_OnChatMessage_Post L4D2Comm_OnChatMessage_Post
-#define L4D2CC_OnServerCvarMessage L4D2Comm_OnServerCvarMessage
-#define L4D2CC_OnPlayerConnectMessage L4D2Comm_OnPlayerConnectMessage
-#define L4D2CC_OnPlayerDisconnectMessage L4D2Comm_OnPlayerDisconnectMessage
-#define L4D2CC_OnPlayerNameChangeMessage L4D2Comm_OnPlayerNameChangeMessage
-#define L4D2CC_OnPlayerTeamMessage L4D2Comm_OnPlayerTeamMessage
-#define L4D2CC_OnTextMsgMessage L4D2Comm_OnTextMsgMessage
-#define L4D2CC_OnSayText2Message L4D2Comm_OnSayText2Message
-
 public SharedPlugin __pl_l4d2_commcore =
 {
 	name = "l4d2_commcore",
 	file = "l4d2_commcore.smx",
 	#if defined REQUIRE_PLUGIN
-	required = 1
+	required = 1,
 	#else
 	required = 0
 	#endif
@@ -171,6 +203,5 @@ public SharedPlugin __pl_l4d2_commcore =
 public void __pl_l4d2_commcore_SetNTVOptional()
 {
 	MarkNativeAsOptional("L4D2Comm_IsCoreReady");
-	MarkNativeAsOptional("L4D2CC_IsCoreReady");
 }
 #endif

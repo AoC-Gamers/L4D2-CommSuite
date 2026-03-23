@@ -61,6 +61,15 @@ native bool BSComm_IsClientBanned(int iClient);
  */
 native eBSCommType BSComm_GetResolvedCommType(int iClient);
 
+/**
+ * Fired when the resolved communication state changes for a connected client.
+ *
+ * @param iClient       Client index.
+ * @param bBlocked      True when the resolved state blocks communication, false otherwise.
+ * @param eCommType     Resolved communication type, or `kBSCommType_None` when none.
+ */
+forward void BSComm_OnClientCommStateChanged(int iClient, bool bBlocked, eBSCommType eCommType);
+
 public SharedPlugin __pl_bansystem_comm =
 {
 	name = "bansystem_comm",

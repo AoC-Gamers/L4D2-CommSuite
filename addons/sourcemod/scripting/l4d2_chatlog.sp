@@ -23,6 +23,7 @@ ConVar g_cvDebugMask = null;
 ConVar g_cvEnabled = null;
 ConVar g_cvLogPublic = null;
 ConVar g_cvLogTeam = null;
+ConVar g_cvLogBlocked = null;
 ConVar g_cvLogConsole = null;
 ConVar g_cvLogFakeClients = null;
 ConVar g_cvLogConnect = null;
@@ -103,6 +104,7 @@ public void OnPluginStart()
 	g_cvEnabled = CreateConVar("l4d2_chatlog_enabled", "1", "Enable chat audit logging.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogPublic = CreateConVar("l4d2_chatlog_log_public", "1", "Log public chat messages.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogTeam = CreateConVar("l4d2_chatlog_log_team", "1", "Log team chat messages.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_cvLogBlocked = CreateConVar("l4d2_chatlog_log_blocked", "0", "Log blocked chat attempts.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogConsole = CreateConVar("l4d2_chatlog_log_console", "1", "Log console chat commands.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogFakeClients = CreateConVar("l4d2_chatlog_log_fakeclients", "0", "Log fake client chat and lifecycle entries.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvLogConnect = CreateConVar("l4d2_chatlog_log_connect", "1", "Log client joins.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -144,7 +146,7 @@ public void OnPluginStart()
 		}
 
 		g_bJoinHandled[client] = true;
-		g_bJoinSqlQueued[client] = true;
+		g_bJoinSqlQueued[client] = false;
 	}
 }
 
@@ -243,7 +245,7 @@ public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBr
 	return Plugin_Continue;
 }
 
-public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, const char[] text)
+public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text)
 {
 	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
@@ -261,9 +263,32 @@ public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, con
 	}
 
 	char line[1024];
-	FormatChatLine(client, channel, text, line, sizeof(line));
+	FormatRenderedChatLine(client, channel, prefix, name, text, line, sizeof(line));
 	WriteMessage(line);
-	LogFormatted(Debug_Write, "write", "Logged chat. client=%d channel=%d text=%s", client, channel, text);
+	LogFormatted(Debug_Write, "write", "Logged chat. client=%d channel=%d prefix=%s name=%s text=%s", client, channel, prefix, name, text);
+}
+
+public void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel, const char[] text)
+{
+	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	{
+		return;
+	}
+
+	if (!ShouldLogBlockedChat(client, channel))
+	{
+		return;
+	}
+
+	if (client > 0 && IsClientInGame(client) && IsFakeClient(client) && (g_cvLogFakeClients == null || !g_cvLogFakeClients.BoolValue))
+	{
+		return;
+	}
+
+	char line[1024];
+	FormatBlockedChatLine(client, channel, text, line, sizeof(line));
+	WriteMessage(line);
+	LogFormatted(Debug_Write, "write", "Logged blocked chat. client=%d channel=%d text=%s", client, channel, text);
 }
 
 public Action L4D2Comm_OnPlayerNameChangeMessage(const char[] oldName, const char[] newName)
@@ -303,7 +328,7 @@ public Action L4D2Comm_OnPlayerTeamMessage(const char[] playerName, L4DTeam team
 	char teamLabel[16];
 	char line[1024];
 	GetTimestamp(timestamp, sizeof(timestamp));
-	GetTeamLabel(team, teamLabel, sizeof(teamLabel));
+	L4D2CS_GetTeamLabel(team, teamLabel, sizeof(teamLabel));
 	FormatEx(line, sizeof(line), "[%s] [TEAM] %s -> %s", timestamp, playerName, teamLabel);
 	WriteMessage(line);
 	LogFormatted(Debug_Lifecycle, "lifecycle", "Logged player team change. name=%s team=%d", playerName, team);
@@ -324,32 +349,13 @@ void LogFormatted(DebugMask bit, const char[] tag, const char[] format, any ...)
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, tag, buffer);
 }
 
 bool IsValidClient(int client)
 {
-	return client > 0 && client <= MaxClients && IsClientConnected(client);
-}
-
-int GetCommandUserId(int client)
-{
-	if (client > 0 && client <= MaxClients)
-	{
-		return GetClientUserId(client);
-	}
-
-	return 0;
-}
-
-int ResolveCommandClient(int userId)
-{
-	if (userId == 0)
-	{
-		return 0;
-	}
-
-	return GetClientOfUserId(userId);
+	return L4D2CS_IsConnectedClient(client);
 }
 
 void ReplyCommand(int client, const char[] format, any ...)
@@ -363,7 +369,7 @@ void ReplyCommand(int client, const char[] format, any ...)
 void ReplyAsync(int userId, const char[] format, any ...)
 {
 	static char buffer[512];
-	int client = ResolveCommandClient(userId);
+	int client = L4D2CS_ResolveCommandClient(userId);
 	VFormat(buffer, sizeof(buffer), format, 2);
 	ReplaceString(buffer, sizeof(buffer), "[L4D2 ChatLog]", L4D2_COMMSUITE_CHATLOG_PREFIX, false);
 	CReplyToCommand(client, "%s", buffer);
@@ -372,16 +378,8 @@ void ReplyAsync(int userId, const char[] format, any ...)
 void PrintQueryLine(int userId, const char[] format, any ...)
 {
 	static char buffer[512];
-	int client = ResolveCommandClient(userId);
 	VFormat(buffer, sizeof(buffer), format, 2);
-
-	if (client > 0)
-	{
-		PrintToConsole(client, "%s", buffer);
-		return;
-	}
-
-	PrintToServer("%s", buffer);
+	L4D2CS_PrintConsoleOrServer(userId, buffer);
 }
 
 bool IsNumericString(const char[] value)
@@ -453,7 +451,6 @@ void GetOptionalServerFilter(int args, int argIndex, char[] buffer, int maxlen)
 
 void CloseDatabase()
 {
-	bool hadConnectionState = (g_db != null || g_bDbReady || g_bDbConnecting);
 	g_bDbReady = false;
 	g_bDbConnecting = false;
 
@@ -461,10 +458,6 @@ void CloseDatabase()
 	{
 		delete g_db;
 		g_db = null;
-	}
-
-	if (hadConnectionState)
-	{
 	}
 }
 
@@ -636,12 +629,22 @@ void QueueJoinInsert(int client)
 	char steam64[32];
 	char ipAddress[32];
 	char country[64];
+	char safeServerId[129];
+	char safePlayerName[257];
+	char safeSteam64[65];
+	char safeIpAddress[65];
+	char safeCountry[129];
 	char query[1024];
 
 	int accountId = GetSteamAccountID(client);
 	GetSqlServerId(serverId, sizeof(serverId));
 	GetClientName(client, playerName, sizeof(playerName));
 	GetIdentityFields(client, steam2, sizeof(steam2), steam64, sizeof(steam64), ipAddress, sizeof(ipAddress), country, sizeof(country));
+	g_db.Escape(serverId, safeServerId, sizeof(safeServerId));
+	g_db.Escape(playerName, safePlayerName, sizeof(safePlayerName));
+	g_db.Escape(steam64, safeSteam64, sizeof(safeSteam64));
+	g_db.Escape(ipAddress, safeIpAddress, sizeof(safeIpAddress));
+	g_db.Escape(country, safeCountry, sizeof(safeCountry));
 
 	int iLen = 0;
 	iLen += g_db.Format(
@@ -654,36 +657,43 @@ void QueueJoinInsert(int client)
 		query[iLen],
 		sizeof(query) - iLen,
 		"'%s', '%s', '%s', %d, '%s', '%s');",
-		serverId,
-		playerName,
-		steam64,
+		safeServerId,
+		safePlayerName,
+		safeSteam64,
 		accountId,
-		ipAddress,
-		country
+		safeIpAddress,
+		safeCountry
 	);
 
 	g_bJoinSqlQueued[client] = true;
-	LogFormatted(Debug_SQL, "sql", "Queueing join insert. accountid=%d steamid64=%s", accountId, steam64);
-	g_db.Query(OnJoinInsertCompleted, query, accountId);
+	LogFormatted(Debug_SQL, "sql", "Queueing join insert. client=%d accountid=%d steamid64=%s", client, accountId, steam64);
+	g_db.Query(OnJoinInsertCompleted, query, GetClientUserId(client));
 }
 
 public void OnJoinInsertCompleted(Database db, DBResultSet results, const char[] error, any data)
 {
+	int userId = data;
+	int client = L4D2CS_ResolveCommandClient(userId);
+
 	if (db == null)
 	{
-		LogFormatted(Debug_SQL, "sql", "Join insert callback returned a null database handle. accountid=%d", data);
+		LogFormatted(Debug_SQL, "sql", "Join insert callback returned a null database handle. userid=%d", userId);
 		return;
 	}
 
 	if (error[0] != '\0')
 	{
-		LogFormatted(Debug_SQL, "sql", "Join insert failed. accountid=%d error=%s", data, error);
+		if (L4D2CS_IsValidClientIndex(client))
+		{
+			g_bJoinSqlQueued[client] = false;
+		}
+		LogFormatted(Debug_SQL, "sql", "Join insert failed. userid=%d client=%d error=%s", userId, client, error);
 		delete results;
 		return;
 	}
 
 	delete results;
-	LogFormatted(Debug_SQL, "sql", "Join insert completed. accountid=%d", data);
+	LogFormatted(Debug_SQL, "sql", "Join insert completed. userid=%d client=%d", userId, client);
 }
 
 void QueueConnectedJoinInserts()
@@ -888,27 +898,24 @@ bool ShouldLogChat(int client, L4D2CommChannel channel)
 	return g_cvLogTeam != null && g_cvLogTeam.BoolValue;
 }
 
-void GetTeamLabel(L4DTeam team, char[] buffer, int maxlen)
+bool ShouldLogBlockedChat(int client, L4D2CommChannel channel)
 {
-	switch (team)
+	if (g_cvLogBlocked == null || !g_cvLogBlocked.BoolValue)
 	{
-		case L4DTeam_Spectator:
-		{
-			strcopy(buffer, maxlen, "Spectator");
-		}
-		case L4DTeam_Survivor:
-		{
-			strcopy(buffer, maxlen, "Survivor");
-		}
-		case L4DTeam_Infected:
-		{
-			strcopy(buffer, maxlen, "Infected");
-		}
-		default:
-		{
-			strcopy(buffer, maxlen, "Unknown");
-		}
+		return false;
 	}
+
+	if (channel == L4D2CommChannel_Public)
+	{
+		if (client == 0)
+		{
+			return g_cvLogConsole != null && g_cvLogConsole.BoolValue;
+		}
+
+		return true;
+	}
+
+	return true;
 }
 
 void GetIdentityFields(int client, char[] steam2, int steam2Len, char[] steam64, int steam64Len, char[] ip, int ipLen, char[] country, int countryLen)
@@ -937,7 +944,7 @@ void GetIdentityFields(int client, char[] steam2, int steam2Len, char[] steam64,
 	}
 }
 
-void FormatChatLine(int client, L4D2CommChannel channel, const char[] text, char[] buffer, int maxlen)
+void FormatRenderedChatLine(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text, char[] buffer, int maxlen)
 {
 	char timestamp[64];
 	char teamLabel[16];
@@ -956,11 +963,38 @@ void FormatChatLine(int client, L4D2CommChannel channel, const char[] text, char
 
 	if (client == 0)
 	{
+		FormatEx(buffer, maxlen, "[%s] [CONSOLE][%s] %s%s : %s", timestamp, channelLabel, prefix, name, text);
+		return;
+	}
+
+	L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
+	FormatEx(buffer, maxlen, "[%s] [%s][%s] %s%s : %s", timestamp, teamLabel, channelLabel, prefix, name, text);
+}
+
+void FormatBlockedChatLine(int client, L4D2CommChannel channel, const char[] text, char[] buffer, int maxlen)
+{
+	char timestamp[64];
+	char teamLabel[16];
+	char channelLabel[20];
+
+	GetTimestamp(timestamp, sizeof(timestamp));
+
+	if (channel == L4D2CommChannel_Team)
+	{
+		strcopy(channelLabel, sizeof(channelLabel), "TEAM-BLOCKED");
+	}
+	else
+	{
+		strcopy(channelLabel, sizeof(channelLabel), "PUBLIC-BLOCKED");
+	}
+
+	if (client == 0)
+	{
 		FormatEx(buffer, maxlen, "[%s] [CONSOLE][%s] : %s", timestamp, channelLabel, text);
 		return;
 	}
 
-	GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
+	L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
 	FormatEx(buffer, maxlen, "[%s] [%s][%s] %N : %s", timestamp, teamLabel, channelLabel, client, text);
 }
 
@@ -1092,7 +1126,7 @@ public Action Command_JoinSummary(int client, int args)
 	bool useAccountId;
 	int accountId;
 	int days = g_cvSqlDefaultRelatedDays != null ? g_cvSqlDefaultRelatedDays.IntValue : 30;
-	int userId = GetCommandUserId(client);
+	int userId = L4D2CS_GetCommandUserId(client);
 	char input[128];
 	char steam64[32];
 	char label[128];
@@ -1168,7 +1202,7 @@ public Action Command_JoinHistory(int client, int args)
 	bool useAccountId;
 	int accountId;
 	int limit = g_cvSqlDefaultHistoryLimit != null ? g_cvSqlDefaultHistoryLimit.IntValue : 25;
-	int userId = GetCommandUserId(client);
+	int userId = L4D2CS_GetCommandUserId(client);
 	char input[128];
 	char steam64[32];
 	char label[128];
@@ -1245,7 +1279,7 @@ public Action Command_JoinRelated(int client, int args)
 	int days = g_cvSqlDefaultRelatedDays != null ? g_cvSqlDefaultRelatedDays.IntValue : 30;
 	int minShared = g_cvSqlDefaultRelatedMinShared != null ? g_cvSqlDefaultRelatedMinShared.IntValue : 2;
 	int limit = 25;
-	int userId = GetCommandUserId(client);
+	int userId = L4D2CS_GetCommandUserId(client);
 	char input[128];
 	char steam64[32];
 	char label[128];
@@ -1363,7 +1397,7 @@ public Action Command_JoinIp(int client, int args)
 
 	int days = g_cvSqlDefaultRelatedDays != null ? g_cvSqlDefaultRelatedDays.IntValue : 30;
 	int limit = g_cvSqlDefaultHistoryLimit != null ? g_cvSqlDefaultHistoryLimit.IntValue : 25;
-	int userId = GetCommandUserId(client);
+	int userId = L4D2CS_GetCommandUserId(client);
 	char ipAddress[64];
 	char serverFilter[64];
 	char query[1024];

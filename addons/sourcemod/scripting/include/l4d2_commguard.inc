@@ -84,6 +84,19 @@ forward Action L4D2CommGuard_OnChatBlockCheck(int client, L4D2CommChannel channe
 forward Action L4D2CommGuard_OnVoiceBlockCheck(int client);
 
 /**
+ * Fired after CommGuard resolves the effective voice-block state for a client.
+ *
+ * This forward runs on every voice-state rebuild, even when the resolved state
+ * did not change. Consumers that only care about deltas should use
+ * `L4D2CommGuard_OnClientVoiceBlockChanged`.
+ *
+ * @param client        Client index.
+ * @param blocked       True if voice is currently resolved as blocked.
+ * @param changed       True if the resolved state differs from the cached state.
+ */
+forward void L4D2CommGuard_OnVoiceBlockResolved(int client, bool blocked, bool changed);
+
+/**
  * Fired when the resolved voice-block state changes for a client.
  *
  * @param client        Client index.

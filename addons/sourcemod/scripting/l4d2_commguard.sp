@@ -29,7 +29,6 @@ ConVar g_cvChatEnabled = null;
 ConVar g_cvVoiceEnabled = null;
 ConVar g_cvLogMode = null;
 
-bool g_bLateLoad = false;
 bool g_bCoreAvailable = false;
 bool g_bBaseCommAvailable = false;
 bool g_bBanSystemCommAvailable = false;
@@ -41,6 +40,7 @@ char g_sLogPath[PLATFORM_MAX_PATH];
 
 Handle g_fwdChatBlockCheck = INVALID_HANDLE;
 Handle g_fwdVoiceBlockCheck = INVALID_HANDLE;
+Handle g_fwdVoiceBlockResolved = INVALID_HANDLE;
 Handle g_fwdVoiceBlockChanged = INVALID_HANDLE;
 
 public Plugin myinfo =
@@ -54,11 +54,11 @@ public Plugin myinfo =
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 {
-	g_bLateLoad = late;
 	RegPluginLibrary(L4D2_COMMGUARD_LIBRARY);
 
 	g_fwdChatBlockCheck = CreateGlobalForward("L4D2CommGuard_OnChatBlockCheck", ET_Hook, Param_Cell, Param_Cell, Param_String);
 	g_fwdVoiceBlockCheck = CreateGlobalForward("L4D2CommGuard_OnVoiceBlockCheck", ET_Hook, Param_Cell);
+	g_fwdVoiceBlockResolved = CreateGlobalForward("L4D2CommGuard_OnVoiceBlockResolved", ET_Ignore, Param_Cell, Param_Cell, Param_Cell);
 	g_fwdVoiceBlockChanged = CreateGlobalForward("L4D2CommGuard_OnClientVoiceBlockChanged", ET_Ignore, Param_Cell, Param_Cell);
 
 	CreateNative("L4D2CommGuard_IsClientChatBlocked", Native_L4D2CommGuard_IsClientChatBlocked);
@@ -77,12 +77,6 @@ public void OnPluginStart()
 	L4D2CS_BuildLogPath("l4d2_commguard.log", g_sLogPath, sizeof(g_sLogPath));
 
 	RegAdminCmd("sm_l4d2_commguard_status", Command_L4D2CommGuard_Status, ADMFLAG_GENERIC, "Show L4D2 CommGuard status.");
-
-	if (g_bLateLoad)
-	{
-		L4D2CommGuard_RefreshLibraryState();
-		L4D2CommGuard_RefreshAllVoiceStates();
-	}
 
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_commguard", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
@@ -112,6 +106,7 @@ public void OnLibraryAdded(const char[] name)
 	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
 	{
 		g_bCoreAvailable = true;
+		L4D2CommGuard_RefreshLibraryState();
 		L4D2CommGuard_LogFormatted(Debug_General, "debug", "Library added: %s", name);
 		return;
 	}
@@ -133,6 +128,7 @@ public void OnLibraryAdded(const char[] name)
 		return;
 	}
 
+	L4D2CommGuard_RefreshLibraryState();
 	L4D2CommGuard_LogFormatted(Debug_General, "debug", "Library added: %s", name);
 	L4D2CommGuard_RefreshAllVoiceStates();
 }
@@ -142,6 +138,7 @@ public void OnLibraryRemoved(const char[] name)
 	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
 	{
 		g_bCoreAvailable = false;
+		L4D2CommGuard_RefreshLibraryState();
 		L4D2CommGuard_LogFormatted(Debug_General, "debug", "Library removed: %s", name);
 		return;
 	}
@@ -163,6 +160,7 @@ public void OnLibraryRemoved(const char[] name)
 		return;
 	}
 
+	L4D2CommGuard_RefreshLibraryState();
 	L4D2CommGuard_LogFormatted(Debug_General, "debug", "Library removed: %s", name);
 	L4D2CommGuard_RefreshAllVoiceStates();
 }
@@ -212,6 +210,22 @@ public void SourceComms_OnBlockRemoved(int client, int target, int type, char[] 
 	L4D2CommGuard_RefreshVoiceStateFromProvider(target, "voice: SourceComms_OnBlockRemoved target=%N type=%d", target, type);
 }
 
+public void BSComm_OnClientCommStateChanged(int client, bool blocked, eBSCommType commType)
+{
+	if (!IsHumanClient(client))
+	{
+		return;
+	}
+
+	L4D2CommGuard_RefreshVoiceStateFromProvider(
+		client,
+		"voice: BSComm_OnClientCommStateChanged client=%N blocked=%d comm_type=%d",
+		client,
+		blocked ? 1 : 0,
+		view_as<int>(commType)
+	);
+}
+
 public any Native_L4D2CommGuard_IsClientChatBlocked(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
@@ -252,6 +266,7 @@ bool L4D2CommGuard_DebugEnabled(L4D2CommGuardDebugMask debugMask)
 
 void L4D2CommGuard_LogLine(const char[] tag, const char[] message)
 {
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, tag, message);
 }
 
@@ -292,6 +307,7 @@ void L4D2CommGuard_LogFormatted(L4D2CommGuardDebugMask debugMask, const char[] t
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
+	L4D2CS_EnsureDebugLogPathReady();
 	L4D2CommGuard_LogLine(tag, buffer);
 }
 
@@ -612,6 +628,7 @@ Action L4D2CommGuard_CallVoiceForward(int client)
 	Call_StartForward(g_fwdVoiceBlockCheck);
 	Call_PushCell(client);
 	Call_Finish(result);
+	L4D2CommGuard_LogFormatted(Debug_External, "external", "voice: external guard finished. client=%N result=%d", client, result);
 	return result;
 }
 
@@ -668,7 +685,18 @@ void L4D2CommGuard_RefreshVoiceState(int client, bool verbose)
 	}
 
 	bool blocked = L4D2CommGuard_ShouldBlockVoice(client);
-	if (g_bVoiceBlocked[client] == blocked)
+	bool changed = g_bVoiceBlocked[client] != blocked;
+
+	if (g_fwdVoiceBlockResolved != INVALID_HANDLE)
+	{
+		Call_StartForward(g_fwdVoiceBlockResolved);
+		Call_PushCell(client);
+		Call_PushCell(blocked ? 1 : 0);
+		Call_PushCell(changed ? 1 : 0);
+		Call_Finish();
+	}
+
+	if (!changed)
 	{
 		return;
 	}

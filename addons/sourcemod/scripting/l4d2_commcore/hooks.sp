@@ -38,7 +38,37 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 	Action result = L4D2Comm_CallChatPreForward(client, channel, sArgs);
 	if (result >= Plugin_Handled)
 	{
+		L4D2Comm_QueueSuppressedChatPost(client, channel, sArgs);
+		L4D2Comm_CallChatBlockedForward(client, channel, sArgs);
+	}
+	if (result >= Plugin_Handled)
+	{
 		L4D2Comm_Hook("Chat pre-forward blocked game call. client=%d command=%s result=%d", client, command, result);
+		return result;
+	}
+
+	char renderPrefix[64];
+	char renderName[MAX_NAME_LENGTH];
+	char renderText[256];
+	L4D2Comm_BuildDefaultChatRender(client, renderPrefix, renderName, sizeof(renderName));
+	strcopy(renderText, sizeof(renderText), sArgs);
+
+	result = L4D2Comm_CallChatRenderForward(client, channel, renderPrefix, sizeof(renderPrefix), renderName, sizeof(renderName), renderText, sizeof(renderText));
+	if (result == Plugin_Changed)
+	{
+		L4D2Comm_QueueSuppressedChatPost(client, channel, sArgs);
+		L4D2Comm_EmitRenderedChat(client, channel, renderPrefix, renderName, renderText);
+		L4D2Comm_CallChatPostForward(client, channel, renderText);
+		L4D2Comm_CallChatRenderedPostForward(client, channel, renderPrefix, renderName, renderText);
+		L4D2Comm_Hook("Chat render-forward replaced game call. client=%d command=%s", client, command);
+		return Plugin_Handled;
+	}
+
+	if (result >= Plugin_Handled)
+	{
+		L4D2Comm_QueueSuppressedChatPost(client, channel, sArgs);
+		L4D2Comm_CallChatBlockedForward(client, channel, sArgs);
+		L4D2Comm_Hook("Chat render-forward blocked game call. client=%d command=%s result=%d", client, command, result);
 		return result;
 	}
 
@@ -47,7 +77,18 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)
 {
-	L4D2Comm_CallChatPostForward(client, L4D2Comm_GetChannelForCommand(command), sArgs);
+	L4D2CommChannel channel = L4D2Comm_GetChannelForCommand(command);
+	if (L4D2Comm_TakeSuppressedChatPost(client, channel, sArgs))
+	{
+		L4D2Comm_Hook("Chat post-forward suppressed. client=%d command=%s", client, command);
+		return;
+	}
+
+	char renderPrefix[64];
+	char renderName[MAX_NAME_LENGTH];
+	L4D2Comm_BuildDefaultChatRender(client, renderPrefix, renderName, sizeof(renderName));
+	L4D2Comm_CallChatPostForward(client, channel, sArgs);
+	L4D2Comm_CallChatRenderedPostForward(client, channel, renderPrefix, renderName, sArgs);
 }
 
 public Action L4D2Comm_Event_ServerCvar(Event event, const char[] name, bool dontBroadcast)

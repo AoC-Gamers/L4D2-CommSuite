@@ -72,7 +72,7 @@ public void OnPluginStart()
 	g_cvSuppressPlayerTeam = CreateConVar("l4d2_chatnoise_suppress_player_team", "0", "Suppress player team change chat noise.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvSuppressServerCvar = CreateConVar("l4d2_chatnoise_suppress_server_cvar", "1", "Suppress server_cvar chat noise.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvSuppressNameChange = CreateConVar("l4d2_chatnoise_suppress_name_change", "1", "Suppress name change chat noise.", FCVAR_NONE, true, 0.0, true, 1.0);
-	g_cvSuppressSourceModCvar = CreateConVar("l4d2_chatnoise_suppress_sm_cvar_change", "1", "Suppress SourceMod cvar change activity messages routed through SayText2.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_cvSuppressSourceModCvar = CreateConVar("l4d2_chatnoise_suppress_sm_cvar_change", "1", "Suppress SourceMod cvar change activity messages routed through SayText2 or TextMsg.", FCVAR_NONE, true, 0.0, true, 1.0);
 	L4D2CS_BuildLogPath("l4d2_chatnoise.log", g_sLogPath, sizeof(g_sLogPath));
 
 	L4D2CN_InitCommands();
@@ -89,6 +89,7 @@ bool L4D2CN_DebugEnabled(int bit)
 
 void L4D2CN_LogLine(const char[] tag, const char[] message)
 {
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_CHATNOISE_LOG_PREFIX, tag, message);
 }
 
@@ -222,6 +223,10 @@ public Action L4D2Comm_OnSayText2Message(const char[] msgKey, const char[] param
 			return Plugin_Handled;
 		}
 	}
+	else if (StrContains(msgKey, "Cstrike_Name_Change", false) != -1)
+	{
+		L4D2CN_Noise("SayText2 name change allowed by config. key=%s", msgKey);
+	}
 
 	if (g_cvSuppressSourceModCvar != null && g_cvSuppressSourceModCvar.BoolValue)
 	{
@@ -229,6 +234,10 @@ public Action L4D2Comm_OnSayText2Message(const char[] msgKey, const char[] param
 		{
 			return Plugin_Handled;
 		}
+	}
+	else if (IsSourceModCvarChangeMessage(msgKey, param1, param2, param3, param4))
+	{
+		L4D2CN_Noise("SayText2 SourceMod cvar change allowed by config. key=%s", msgKey);
 	}
 
 	return Plugin_Continue;
@@ -249,6 +258,10 @@ public Action L4D2Comm_OnTextMsgMessage(const char[] msgKey, const char[] param1
 		{
 			return Plugin_Handled;
 		}
+	}
+	else if (IsSourceModCvarChangeMessage(msgKey, param1, param2, param3, param4))
+	{
+		L4D2CN_Noise("TextMsg SourceMod cvar change allowed by config. key=%s", msgKey);
 	}
 
 	return Plugin_Continue;
@@ -281,7 +294,7 @@ bool IsSourceModCvarChangeToken(const char[] value)
 		return true;
 	}
 
-	if (StrContains(value, "Cvar \"", false) != -1)
+	if (StrContains(value, "[SM]", false) != -1 && StrContains(value, "Cvar \"", false) != -1)
 	{
 		if (StrContains(value, "changed to", false) != -1 || StrContains(value, "cambiada a", false) != -1)
 		{

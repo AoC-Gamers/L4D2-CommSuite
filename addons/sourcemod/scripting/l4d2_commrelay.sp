@@ -28,7 +28,6 @@ ConVar g_cvVoiceEnabled = null;
 ConVar g_cvVoiceDefaultEnabled = null;
 ConVar g_cvVoiceSurvivor = null;
 ConVar g_cvVoiceInfected = null;
-ConVar g_cvAllTalk = null;
 ConVar g_cvLogMode = null;
 
 Handle g_hCookieVoiceEnabled = INVALID_HANDLE;
@@ -75,12 +74,6 @@ public void OnPluginStart()
 
 	g_bCoreAvailable = LibraryExists(L4D2_COMMCORE_LIBRARY);
 	g_bCommGuardAvailable = LibraryExists(L4D2_COMMGUARD_LIBRARY);
-
-	g_cvAllTalk = FindConVar("sv_alltalk");
-	if (g_cvAllTalk != null)
-	{
-		HookConVarChange(g_cvAllTalk, Relay_OnConVarChanged);
-	}
 
 	HookConVarChange(g_cvVoiceEnabled, Relay_OnConVarChanged);
 	HookConVarChange(g_cvVoiceDefaultEnabled, Relay_OnConVarChanged);
@@ -173,24 +166,26 @@ public void OnClientPutInServer(int client)
 		OnClientCookiesCached(client);
 	}
 
-	QueueRefreshAllVoiceOverrides();
+	RefreshClientVoiceOverrides(client);
 }
 
 public void OnClientPostAdminCheck(int client)
 {
-	QueueRefreshAllVoiceOverrides();
+	RefreshClientVoiceOverrides(client);
 }
 
 public void OnClientDisconnect(int client)
 {
+	ResetVoiceOverridesForSender(client);
 	g_bVoiceEnabledByClient[client] = true;
 	g_bCookiesCached[client] = false;
 	g_bPendingCookieSave[client] = false;
+	QueueRefreshAllVoiceOverrides();
 }
 
 public void OnClientCookiesCached(int client)
 {
-	if (!IsValidClientIndex(client))
+	if (!L4D2CS_IsValidClientIndex(client))
 	{
 		return;
 	}
@@ -213,7 +208,7 @@ public void OnClientCookiesCached(int client)
 	}
 }
 
-public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, const char[] text)
+public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text)
 {
 	if (!g_bCoreAvailable || g_cvChatEnabled == null || !g_cvChatEnabled.BoolValue)
 	{
@@ -238,33 +233,19 @@ public void L4D2Comm_OnChatMessage_Post(int client, L4D2CommChannel channel, con
 	}
 
 	char teamLabel[16];
-	GetTeamLabel(authorTeam, teamLabel, sizeof(teamLabel));
+	L4D2CS_GetTeamLabel(authorTeam, teamLabel, sizeof(teamLabel));
 
 	for (int target = 1; target <= MaxClients; target++)
 	{
-		if (!IsConnectedClient(target) || !IsClientInGame(target) || target == client)
+		if (!Relay_ShouldRelayTeamChatToTarget(client, target, authorTeam))
 		{
 			continue;
 		}
 
-		if (IsClientSourceTV(target) || IsClientReplay(target))
-		{
-			if (g_cvChatSourceTVTeam != null && g_cvChatSourceTVTeam.BoolValue)
-			{
-				CPrintToChatEx(target, client, "{olive}(%s){default} {teamcolor}%N{default}: %s", teamLabel, client, text);
-			}
-			continue;
-		}
-
-		if ((g_cvChatSpecTeam == null || !g_cvChatSpecTeam.BoolValue) || !IsHumanSpectator(target))
-		{
-			continue;
-		}
-
-		CPrintToChatEx(target, client, "{olive}(%s){default} {teamcolor}%N{default}: %s", teamLabel, client, text);
+		CPrintToChatEx(target, client, "{olive}(%s){default} %s{teamcolor}%s{default}: %s", teamLabel, prefix, name, text);
 	}
 
-	Relay_LogFormatted(Debug_Chat, "chat", "Relayed team chat. author=%N team=%d text=%s", client, authorTeam, text);
+	Relay_LogFormatted(Debug_Chat, "chat", "Relayed team chat. author=%N team=%d prefix=%s name=%s text=%s", client, authorTeam, prefix, name, text);
 }
 
 public void L4D2CommGuard_OnClientVoiceBlockChanged(int client, bool blocked)
@@ -277,7 +258,7 @@ public void L4D2CommGuard_OnClientVoiceBlockChanged(int client, bool blocked)
 public any Native_IsVoiceEnabled(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
-	return IsValidClientIndex(client) && g_bVoiceEnabledByClient[client];
+	return L4D2CS_IsValidClientIndex(client) && g_bVoiceEnabledByClient[client];
 }
 
 public any Native_SetVoiceEnabled(Handle plugin, int numParams)
@@ -341,7 +322,7 @@ public Action Command_Status(int client, int args)
 {
 	CReplyToCommand(
 		client,
-		"%s core={green}%d{default} commguard={green}%d{default} debug_mask={green}%d{default} chat={green}%d{default} chat_spec={green}%d{default} chat_sourcetv={green}%d{default} voice={green}%d{default} voice_default={green}%d{default} voice_survivor={green}%d{default} voice_infected={green}%d{default} alltalk={green}%d{default}",
+		"%s core={green}%d{default} commguard={green}%d{default} debug_mask={green}%d{default} chat={green}%d{default} chat_spec={green}%d{default} chat_sourcetv={green}%d{default} voice={green}%d{default} voice_default={green}%d{default} voice_survivor={green}%d{default} voice_infected={green}%d{default}",
 		L4D2_COMMSUITE_COMMRELAY_PREFIX,
 		g_bCoreAvailable,
 		g_bCommGuardAvailable,
@@ -352,8 +333,7 @@ public Action Command_Status(int client, int args)
 		g_cvVoiceEnabled != null && g_cvVoiceEnabled.BoolValue,
 		g_cvVoiceDefaultEnabled != null && g_cvVoiceDefaultEnabled.BoolValue,
 		g_cvVoiceSurvivor != null && g_cvVoiceSurvivor.BoolValue,
-		g_cvVoiceInfected != null && g_cvVoiceInfected.BoolValue,
-		g_cvAllTalk != null && g_cvAllTalk.BoolValue
+		g_cvVoiceInfected != null && g_cvVoiceInfected.BoolValue
 	);
 
 	if (client > 0 && IsHumanClient(client))
@@ -425,22 +405,38 @@ void Relay_LogFormatted(RelayDebugMask debugMask, const char[] tag, const char[]
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
+	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, tag, buffer);
-}
-
-bool IsValidClientIndex(int client)
-{
-	return client > 0 && client <= MaxClients;
-}
-
-bool IsConnectedClient(int client)
-{
-	return IsValidClientIndex(client) && IsClientConnected(client);
 }
 
 bool IsHumanSpectator(int client)
 {
 	return IsHumanClient(client) && L4D_GetClientTeam(client) == L4DTeam_Spectator;
+}
+
+bool Relay_ShouldRelayTeamChatToTarget(int author, int target, L4DTeam authorTeam)
+{
+	if (!L4D2CS_IsConnectedClient(target) || !IsClientInGame(target) || target == author)
+	{
+		return false;
+	}
+
+	if (IsClientSourceTV(target) || IsClientReplay(target))
+	{
+		return g_cvChatSourceTVTeam != null && g_cvChatSourceTVTeam.BoolValue;
+	}
+
+	if (!IsHumanSpectator(target))
+	{
+		return false;
+	}
+
+	if (authorTeam != L4DTeam_Survivor && authorTeam != L4DTeam_Infected)
+	{
+		return false;
+	}
+
+	return g_cvChatSpecTeam != null && g_cvChatSpecTeam.BoolValue;
 }
 
 bool CanUseVoiceRelay(int client, bool notify)
@@ -480,29 +476,6 @@ bool IsVoiceRelayTeamEnabled(L4DTeam team)
 	return false;
 }
 
-void GetTeamLabel(L4DTeam team, char[] buffer, int maxlen)
-{
-	switch (team)
-	{
-		case L4DTeam_Spectator:
-		{
-			strcopy(buffer, maxlen, "Spectator");
-		}
-		case L4DTeam_Survivor:
-		{
-			strcopy(buffer, maxlen, "Survivor");
-		}
-		case L4DTeam_Infected:
-		{
-			strcopy(buffer, maxlen, "Infected");
-		}
-		default:
-		{
-			strcopy(buffer, maxlen, "Unknown");
-		}
-	}
-}
-
 void LoadVoicePreference(int client)
 {
 	char value[4];
@@ -526,11 +499,10 @@ void ReplyVoiceStatus(int client)
 {
 	CReplyToCommand(
 		client,
-		"%s voice={green}%d{default} client_voice_enabled={green}%d{default} alltalk={green}%d{default} survivor={green}%d{default} infected={green}%d{default} commguard={green}%d{default}",
+		"%s voice={green}%d{default} client_voice_enabled={green}%d{default} survivor={green}%d{default} infected={green}%d{default} commguard={green}%d{default}",
 		L4D2_COMMSUITE_COMMRELAY_PREFIX,
 		g_cvVoiceEnabled != null && g_cvVoiceEnabled.BoolValue,
 		g_bVoiceEnabledByClient[client],
-		g_cvAllTalk != null && g_cvAllTalk.BoolValue,
 		g_cvVoiceSurvivor != null && g_cvVoiceSurvivor.BoolValue,
 		g_cvVoiceInfected != null && g_cvVoiceInfected.BoolValue,
 		g_bCommGuardAvailable
@@ -577,11 +549,32 @@ void ResetAllVoiceOverrides()
 
 		for (int sender = 1; sender <= MaxClients; sender++)
 		{
-			if (!IsHumanClient(sender) || sender == receiver)
+			if (sender == receiver)
 			{
 				continue;
 			}
 
+			SetListenOverride(receiver, sender, Listen_Default);
+		}
+	}
+}
+
+void ResetVoiceOverridesForSender(int sender)
+{
+	if (!L4D2CS_IsValidClientIndex(sender))
+	{
+		return;
+	}
+
+	for (int receiver = 1; receiver <= MaxClients; receiver++)
+	{
+		if (!IsHumanClient(receiver) || receiver == sender)
+		{
+			continue;
+		}
+
+		if (GetListenOverride(receiver, sender) != Listen_Default)
+		{
 			SetListenOverride(receiver, sender, Listen_Default);
 		}
 	}
@@ -662,4 +655,3 @@ void RefreshClientVoiceOverrides(int receiver)
 
 	Relay_LogFormatted(Debug_Voice, "voice", "Refreshed overrides for %N manage=%d enabled=%d", receiver, manageReceiver, g_bVoiceEnabledByClient[receiver]);
 }
-
