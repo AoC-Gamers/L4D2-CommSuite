@@ -82,7 +82,6 @@ public void OnPluginStart()
 	HookConVarChange(g_cvChatEnabled, Relay_OnConVarChanged);
 	HookConVarChange(g_cvChatSpecTeam, Relay_OnConVarChanged);
 	HookConVarChange(g_cvChatSourceTVTeam, Relay_OnConVarChanged);
-	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, "startup", "Plugin started. version=%s core=%d guard=%d", L4D2_COMMRELAY_VERSION, g_bCoreAvailable ? 1 : 0, g_bCommGuardAvailable ? 1 : 0);
 
 	HookEvent("player_team", Event_PlayerTeam, EventHookMode_Post);
 

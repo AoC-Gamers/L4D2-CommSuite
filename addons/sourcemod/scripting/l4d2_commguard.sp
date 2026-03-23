@@ -80,7 +80,6 @@ public void OnPluginStart()
 
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_commguard", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
-	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_COMMGUARD_VERSION);
 	L4D2CommGuard_LogFormatted(Debug_General, "debug", "Plugin started. version=%s", L4D2_COMMGUARD_VERSION);
 }
 
@@ -326,13 +325,13 @@ void L4D2CommGuard_RefreshLibraryState()
 	{
 		if (activeProvider == Provider_None)
 		{
-			L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, "provider", "active=none loaded_mask=%d", view_as<int>(L4D2CommGuard_GetLoadedProviderMaskInternal()));
+			L4D2CommGuard_LogFormatted(Debug_Provider, "provider", "active=none loaded_mask=%d", view_as<int>(L4D2CommGuard_GetLoadedProviderMaskInternal()));
 		}
 		else
 		{
 			char providerName[32];
 			L4D2CommGuard_FormatProviderName(activeProvider, providerName, sizeof(providerName));
-			L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, "provider", "active=%s loaded_mask=%d", providerName, view_as<int>(L4D2CommGuard_GetLoadedProviderMaskInternal()));
+			L4D2CommGuard_LogFormatted(Debug_Provider, "provider", "active=%s loaded_mask=%d", providerName, view_as<int>(L4D2CommGuard_GetLoadedProviderMaskInternal()));
 		}
 
 		g_eLastLoggedProvider = activeProvider;
