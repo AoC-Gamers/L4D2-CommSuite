@@ -26,7 +26,8 @@ ConVar g_cvSuppressNameChange = null;
 ConVar g_cvSuppressSourceModCvar = null;
 ConVar g_cvLogMode = null;
 
-bool g_bCoreAvailable = false;
+bool g_bCoreLibrary = false;
+bool g_bLateLoad = false;
 char g_sLogPath[PLATFORM_MAX_PATH];
 
 public Plugin myinfo =
@@ -38,28 +39,37 @@ public Plugin myinfo =
 	url = "https://github.com/AoC-Gamers/L4D2-CommSuite"
 };
 
+static void L4D2CN_RefreshLibraryState()
+{
+	g_bCoreLibrary = LibraryExists(L4D2_COMMCORE_LIBRARY);
+}
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
+{
+	g_bLateLoad = late;
+	L4D2CN_RefreshLibraryState();
+	return APLRes_Success;
+}
+
 public void OnAllPluginsLoaded()
 {
-	g_bCoreAvailable = LibraryExists(L4D2_COMMCORE_LIBRARY);
-	L4D2CN_Debug("OnAllPluginsLoaded. core=%d", g_bCoreAvailable);
+	L4D2CN_RefreshLibraryState();
 }
 
 public void OnLibraryAdded(const char[] name)
 {
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreAvailable = true;
-		L4D2CN_Debug("Library added: %s", name);
-	}
+	if (!StrEqual(name, L4D2_COMMCORE_LIBRARY))
+		return;
+
+	g_bCoreLibrary = true;
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreAvailable = false;
-		L4D2CN_Debug("Library removed: %s", name);
-	}
+	if (!StrEqual(name, L4D2_COMMCORE_LIBRARY))
+		return;
+
+	g_bCoreLibrary = false;
 }
 
 public void OnPluginStart()
@@ -76,9 +86,14 @@ public void OnPluginStart()
 	L4D2CS_BuildLogPath("l4d2_chatnoise.log", g_sLogPath, sizeof(g_sLogPath));
 
 	L4D2CN_InitCommands();
-	L4D2CN_Debug("Plugin started. version=%s", L4D2_CHATNOISE_VERSION);
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_chatnoise", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
+
+	if (!g_bLateLoad)
+		return;
+
+
+	L4D2CN_RefreshLibraryState();
 }
 
 bool L4D2CN_DebugEnabled(int bit)
@@ -90,18 +105,6 @@ void L4D2CN_LogLine(const char[] tag, const char[] message)
 {
 	L4D2CS_EnsureDebugLogPathReady();
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_CHATNOISE_LOG_PREFIX, tag, message);
-}
-
-void L4D2CN_Debug(const char[] format, any ...)
-{
-	if (!L4D2CN_DebugEnabled(L4D2ChatNoiseDebug_General))
-	{
-		return;
-	}
-
-	static char buffer[512];
-	VFormat(buffer, sizeof(buffer), format, 2);
-	L4D2CN_LogLine("debug", buffer);
 }
 
 void L4D2CN_Noise(const char[] format, any ...)
@@ -118,7 +121,7 @@ void L4D2CN_Noise(const char[] format, any ...)
 
 public Action L4D2Comm_OnServerCvarMessage(const char[] cvarName, const char[] cvarValue)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -135,7 +138,7 @@ public Action L4D2Comm_OnServerCvarMessage(const char[] cvarName, const char[] c
 
 public Action L4D2Comm_OnPlayerConnectMessage(const char[] playerName)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -152,7 +155,7 @@ public Action L4D2Comm_OnPlayerConnectMessage(const char[] playerName)
 
 public Action L4D2Comm_OnPlayerDisconnectMessage(const char[] playerName, const char[] reason)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -169,7 +172,7 @@ public Action L4D2Comm_OnPlayerDisconnectMessage(const char[] playerName, const 
 
 public Action L4D2Comm_OnPlayerNameChangeMessage(const char[] oldName, const char[] newName)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -186,7 +189,7 @@ public Action L4D2Comm_OnPlayerNameChangeMessage(const char[] oldName, const cha
 
 public Action L4D2Comm_OnPlayerTeamMessage(const char[] playerName, L4DTeam team, bool disconnect)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -208,7 +211,7 @@ public Action L4D2Comm_OnPlayerTeamMessage(const char[] playerName, L4DTeam team
 
 public Action L4D2Comm_OnSayText2Message(const char[] msgKey, const char[] param1, const char[] param2, const char[] param3, const char[] param4, int firstTarget, int playersNum, bool reliable, bool init)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -244,7 +247,7 @@ public Action L4D2Comm_OnSayText2Message(const char[] msgKey, const char[] param
 
 public Action L4D2Comm_OnTextMsgMessage(const char[] msgKey, const char[] param1, const char[] param2, const char[] param3, const char[] param4, int firstTarget, int playersNum, bool reliable, bool init)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -315,7 +318,7 @@ public Action Command_L4D2CN_Status(int client, int args)
 		client,
 		"%s core=%d debug_mask=%d enabled=%d join=%d leave=%d team=%d server_cvar=%d name_change=%d",
 		L4D2_COMMSUITE_CHATNOISE_PREFIX,
-		g_bCoreAvailable,
+		g_bCoreLibrary,
 		g_cvDebugMask != null ? g_cvDebugMask.IntValue : 0,
 		g_cvEnabled != null ? g_cvEnabled.BoolValue : false,
 		g_cvSuppressPlayerConnect != null ? g_cvSuppressPlayerConnect.BoolValue : false,

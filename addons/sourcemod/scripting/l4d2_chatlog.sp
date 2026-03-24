@@ -42,7 +42,7 @@ ConVar g_cvSqlDefaultRelatedMinShared = null;
 ConVar g_cvLogMode = null;
 
 bool g_bLateLoad = false;
-bool g_bCoreAvailable = false;
+bool g_bCoreLibrary = false;
 bool g_bMapBannerPending = true;
 bool g_bDbReady = false;
 bool g_bDbConnecting = false;
@@ -67,34 +67,37 @@ public Plugin myinfo =
 	url = "https://github.com/AoC-Gamers/L4D2-CommSuite"
 };
 
+static void ChatLog_RefreshLibraryState()
+{
+	g_bCoreLibrary = LibraryExists(L4D2_COMMCORE_LIBRARY);
+}
+
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 {
 	g_bLateLoad = late;
+	ChatLog_RefreshLibraryState();
 	return APLRes_Success;
 }
 
 public void OnAllPluginsLoaded()
 {
-	g_bCoreAvailable = LibraryExists(L4D2_COMMCORE_LIBRARY);
-	LogFormatted(Debug_General, "debug", "OnAllPluginsLoaded. core=%d", g_bCoreAvailable);
+	ChatLog_RefreshLibraryState();
 }
 
 public void OnLibraryAdded(const char[] name)
 {
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreAvailable = true;
-		LogFormatted(Debug_General, "debug", "Library added: %s", name);
-	}
+	if (!StrEqual(name, L4D2_COMMCORE_LIBRARY))
+		return;
+
+	g_bCoreLibrary = true;
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreAvailable = false;
-		LogFormatted(Debug_General, "debug", "Library removed: %s", name);
-	}
+	if (!StrEqual(name, L4D2_COMMCORE_LIBRARY))
+		return;
+
+	g_bCoreLibrary = false;
 }
 
 public void OnPluginStart()
@@ -127,7 +130,6 @@ public void OnPluginStart()
 
 	InitCommands();
 	RefreshMapState();
-	LogFormatted(Debug_General, "debug", "Plugin started. version=%s", L4D2_CHATLOG_VERSION);
 
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_chatlog", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
@@ -136,6 +138,8 @@ public void OnPluginStart()
 	{
 		return;
 	}
+
+	ChatLog_RefreshLibraryState();
 
 	for (int client = 1; client <= MaxClients; client++)
 	{
@@ -246,7 +250,7 @@ public Action Event_PlayerDisconnect(Event event, const char[] name, bool dontBr
 
 public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return;
 	}
@@ -269,7 +273,7 @@ public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel cha
 
 public void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel, const char[] text)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return;
 	}
@@ -292,7 +296,7 @@ public void L4D2Comm_OnChatMessage_Blocked(int client, L4D2CommChannel channel, 
 
 public Action L4D2Comm_OnPlayerNameChangeMessage(const char[] oldName, const char[] newName)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue)
 	{
 		return Plugin_Continue;
 	}
@@ -313,7 +317,7 @@ public Action L4D2Comm_OnPlayerNameChangeMessage(const char[] oldName, const cha
 
 public Action L4D2Comm_OnPlayerTeamMessage(const char[] playerName, L4DTeam team, bool disconnect)
 {
-	if (!g_bCoreAvailable || g_cvEnabled == null || !g_cvEnabled.BoolValue || disconnect)
+	if (!g_bCoreLibrary || g_cvEnabled == null || !g_cvEnabled.BoolValue || disconnect)
 	{
 		return Plugin_Continue;
 	}
@@ -1081,7 +1085,7 @@ public Action Command_Status(int client, int args)
 	ReplyCommand(
 		client,
 		"[L4D2 ChatLog] core=%d debug_mask=%d enabled=%d public=%d team=%d connect=%d disconnect=%d name=%d teamchange=%d detail=%d join_audit=%d sql_enabled=%d sql_ready=%d sql_connecting=%d sql_config=%s chat=%s",
-		g_bCoreAvailable,
+		g_bCoreLibrary,
 		g_cvDebugMask != null ? g_cvDebugMask.IntValue : 0,
 		g_cvEnabled != null ? g_cvEnabled.BoolValue : false,
 		g_cvLogPublic != null ? g_cvLogPublic.BoolValue : false,
