@@ -14,6 +14,7 @@ case "$TAG_NAME" in
   sourcemod/v*)
     component="sourcemod"
     version="${TAG_NAME#sourcemod/v}"
+    basename="l4d2-commsuite-${version}"
     release_name="SourceMod v${version}"
     ;;
   *)
@@ -80,6 +81,7 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
     echo "component=$component"
     echo "version=$version"
+    echo "basename=$basename"
     echo "release_name=$release_name"
     echo "prerelease=$prerelease"
   } >> "$GITHUB_OUTPUT"
@@ -87,6 +89,7 @@ else
   cat <<EOF
 component=$component
 version=$version
+basename=$basename
 release_name=$release_name
 prerelease=$prerelease
 EOF

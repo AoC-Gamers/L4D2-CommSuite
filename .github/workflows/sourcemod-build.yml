@@ -67,35 +67,45 @@ jobs:
           done
 
       - name: Resolve artifact channel
-        if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'develop')
         id: artifact
         shell: bash
         run: |
           case "${GITHUB_REF_NAME}" in
             main)
               echo "version=latest" >> "$GITHUB_OUTPUT"
-              echo "name=l4d2-commsuite-latest" >> "$GITHUB_OUTPUT"
+              echo "basename=l4d2-commsuite-latest" >> "$GITHUB_OUTPUT"
               echo "tag=channel/latest" >> "$GITHUB_OUTPUT"
               echo "release_name=Latest" >> "$GITHUB_OUTPUT"
               echo "prerelease=false" >> "$GITHUB_OUTPUT"
               ;;
             develop)
               echo "version=develop" >> "$GITHUB_OUTPUT"
-              echo "name=l4d2-commsuite-develop" >> "$GITHUB_OUTPUT"
+              echo "basename=l4d2-commsuite-develop" >> "$GITHUB_OUTPUT"
               echo "tag=channel/develop" >> "$GITHUB_OUTPUT"
               echo "release_name=Develop" >> "$GITHUB_OUTPUT"
               echo "prerelease=true" >> "$GITHUB_OUTPUT"
               ;;
+            *)
+              echo "version=pr-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+              echo "basename=l4d2-commsuite-pr-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+              ;;
           esac
 
       - name: Package SourceMod artifact
-        if: github.event_name != 'pull_request' && steps.artifact.outputs.version != ''
         env:
+          RELEASE_BASENAME: ${{ steps.artifact.outputs.basename }}
           RELEASE_VERSION: ${{ steps.artifact.outputs.version }}
         run: bash ./scripts/ci-package-release-assets.sh
 
+      - name: Upload release zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.basename }}
+          path: dist/release/${{ steps.artifact.outputs.basename }}.zip
+          if-no-files-found: error
+
       - name: Move channel tag
-        if: github.event_name != 'pull_request' && steps.artifact.outputs.version != ''
+        if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'develop')
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
@@ -104,26 +114,26 @@ jobs:
           git push origin "refs/tags/${{ steps.artifact.outputs.tag }}" --force
 
       - name: Publish channel release
-        if: github.event_name != 'pull_request' && steps.artifact.outputs.version != ''
+        if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'develop')
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           tag="${{ steps.artifact.outputs.tag }}"
           title="${{ steps.artifact.outputs.release_name }}"
-          asset="dist/release/l4d2-commsuite-${{ steps.artifact.outputs.version }}.zip"
+          asset="dist/release/${{ steps.artifact.outputs.basename }}.zip"
 
           if gh release view "$tag" >/dev/null 2>&1; then
             if [[ "${{ steps.artifact.outputs.prerelease }}" == "true" ]]; then
               gh release edit "$tag" --title "$title" --prerelease
             else
-              gh release edit "$tag" --title "$title" --latest
+              gh release edit "$tag" --title "$title"
             fi
           else
             if [[ "${{ steps.artifact.outputs.prerelease }}" == "true" ]]; then
-              gh release create "$tag" --title "$title" --prerelease --target "$GITHUB_SHA"
+              gh release create "$tag" --title "$title" --prerelease --latest=false --target "$GITHUB_SHA"
             else
-              gh release create "$tag" --title "$title" --latest --target "$GITHUB_SHA"
+              gh release create "$tag" --title "$title" --latest=false --target "$GITHUB_SHA"
             fi
           fi
 
