@@ -23,6 +23,7 @@ jobs:
     outputs:
       component: ${{ steps.release.outputs.component }}
       version: ${{ steps.release.outputs.version }}
+      basename: ${{ steps.release.outputs.basename }}
       release_name: ${{ steps.release.outputs.release_name }}
       prerelease: ${{ steps.release.outputs.prerelease }}
 
@@ -89,8 +90,16 @@ jobs:
 
       - name: Package release assets
         env:
+          RELEASE_BASENAME: ${{ needs.prepare-release.outputs.basename }}
           RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: bash ./scripts/ci-package-release-assets.sh
+
+      - name: Upload release zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.prepare-release.outputs.basename }}
+          path: dist/release/${{ needs.prepare-release.outputs.basename }}.zip
+          if-no-files-found: error
 
       - name: Create GitHub release
         env:
@@ -99,7 +108,7 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           title="${{ needs.prepare-release.outputs.release_name }}"
-          asset="dist/release/l4d2-commsuite-${{ needs.prepare-release.outputs.version }}.zip"
+          asset="dist/release/${{ needs.prepare-release.outputs.basename }}.zip"
 
           if gh release view "$tag" >/dev/null 2>&1; then
             if [[ "${{ needs.prepare-release.outputs.prerelease }}" == "true" ]]; then
@@ -113,7 +122,7 @@ jobs:
           fi
 
           if [[ "${{ needs.prepare-release.outputs.prerelease }}" == "true" ]]; then
-            gh release create "$tag" "$asset" --title "$title" --generate-notes --verify-tag --prerelease
+            gh release create "$tag" "$asset" --title "$title" --generate-notes --verify-tag --prerelease --latest=false
           else
             gh release create "$tag" "$asset" --title "$title" --generate-notes --verify-tag --latest
           fi
