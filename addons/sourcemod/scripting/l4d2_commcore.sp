@@ -65,7 +65,6 @@ public void OnPluginStart()
 
 	L4D2Comm_InitHooks();
 	L4D2Comm_InitCommands();
-	L4D2CS_NormalLogToFileEx(g_cvL4D2Comm_LogMode, L4D2_COMMSUITE_COMMCORE_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_COMMCORE_VERSION);
 	L4D2Comm_Debug("Plugin started. version=%s", L4D2_COMMCORE_VERSION);
 
 	L4D2CS_EnsureAutoExecFolder();

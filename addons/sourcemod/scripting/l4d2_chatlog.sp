@@ -127,7 +127,6 @@ public void OnPluginStart()
 
 	InitCommands();
 	RefreshMapState();
-	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_CHATLOG_VERSION);
 	LogFormatted(Debug_General, "debug", "Plugin started. version=%s", L4D2_CHATLOG_VERSION);
 
 	L4D2CS_EnsureAutoExecFolder();

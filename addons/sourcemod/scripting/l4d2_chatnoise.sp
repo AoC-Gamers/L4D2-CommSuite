@@ -76,7 +76,6 @@ public void OnPluginStart()
 	L4D2CS_BuildLogPath("l4d2_chatnoise.log", g_sLogPath, sizeof(g_sLogPath));
 
 	L4D2CN_InitCommands();
-	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_CHATNOISE_LOG_PREFIX, "startup", "Plugin started. version=%s", L4D2_CHATNOISE_VERSION);
 	L4D2CN_Debug("Plugin started. version=%s", L4D2_CHATNOISE_VERSION);
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_chatnoise", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
