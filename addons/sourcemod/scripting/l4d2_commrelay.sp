@@ -573,7 +573,7 @@ void ResetAllVoiceOverrides()
 
 		for (int sender = 1; sender <= MaxClients; sender++)
 		{
-			if (sender == receiver)
+			if (!IsHumanClient(sender) || sender == receiver)
 			{
 				continue;
 			}
