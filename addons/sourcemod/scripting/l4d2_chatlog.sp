@@ -124,7 +124,7 @@ public void OnPluginStart()
 	g_cvSqlDefaultHistoryLimit = CreateConVar("l4d2_chatlog_sql_default_history_limit", "25", "Default result limit for join history queries.", FCVAR_NONE, true, 1.0, true, 200.0);
 	g_cvSqlDefaultRelatedDays = CreateConVar("l4d2_chatlog_sql_default_related_days", "30", "Default day window for related-account queries.", FCVAR_NONE, true, 1.0, true, 3650.0);
 	g_cvSqlDefaultRelatedMinShared = CreateConVar("l4d2_chatlog_sql_default_related_min_shared", "2", "Default minimum shared joins per IP for related-account queries.", FCVAR_NONE, true, 1.0, true, 1000.0);
-	L4D2CS_BuildLogPath(g_cvLogMode, "l4d2_chatlog.log", g_sLogPath, sizeof(g_sLogPath));
+	L4D2CS_BuildLogPath("l4d2_chatlog.log", g_sLogPath, sizeof(g_sLogPath));
 
 	HookEvent("player_team", Event_PlayerTeam, EventHookMode_Post);
 	HookEvent("player_disconnect", Event_PlayerDisconnect, EventHookMode_Pre);
@@ -157,6 +157,7 @@ public void OnPluginStart()
 public void OnConfigsExecuted()
 {
 	RefreshSqlConnection(false);
+	L4D2CS_EnsureDebugLogFolderForMode(g_cvLogMode);
 }
 
 public void OnPluginEnd()
@@ -353,7 +354,6 @@ void LogFormatted(DebugMask bit, const char[] tag, const char[] format, any ...)
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
-	L4D2CS_EnsureDebugLogPathReady(g_cvLogMode);
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_CHATLOG_LOG_PREFIX, tag, buffer);
 }
 

@@ -60,7 +60,7 @@ public void OnPluginStart()
 	g_cvL4D2Comm_LogMode = L4D2CS_FindOrCreatePluginLogModeConVar("l4d2_commcore_log_mode", "L4D2 CommCore log mode. 0=off, 1=normal, 2=debug.");
 	g_cvL4D2Comm_DebugMask = CreateConVar("l4d2_commcore_debug_mask", "0", "Debug bitmask. 1=general 2=hook 4=noise (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvL4D2Comm_NoiseEnabled = CreateConVar("l4d2_commcore_noise_enabled", "1", "Enable communication noise filtering hooks.", FCVAR_NONE, true, 0.0, true, 1.0);
-	L4D2CS_BuildLogPath(g_cvL4D2Comm_LogMode, "l4d2_commcore.log", g_sLogPath, sizeof(g_sLogPath));
+	L4D2CS_BuildLogPath("l4d2_commcore.log", g_sLogPath, sizeof(g_sLogPath));
 	g_aL4D2Comm_SuppressedChatPosts = new ArrayList(ByteCountToCells(384));
 
 	L4D2Comm_InitHooks();
@@ -70,6 +70,11 @@ public void OnPluginStart()
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_commcore", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
 	L4D2Comm_SetCoreReady(true);
+}
+
+public void OnConfigsExecuted()
+{
+	L4D2CS_EnsureDebugLogFolderForMode(g_cvL4D2Comm_LogMode);
 }
 
 public void OnPluginEnd()

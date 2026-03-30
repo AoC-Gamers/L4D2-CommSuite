@@ -105,12 +105,17 @@ stock void L4D2CS_PrintConsoleOrServer(int userId, const char[] line)
 stock ConVar L4D2CS_FindOrCreatePluginLogModeConVar(const char[] conVarName, const char[] description)
 {
 	ConVar cvLogMode = CreateConVar(conVarName, "0", description, FCVAR_NONE, true, 0.0, true, 2.0);
-	if (cvLogMode != null)
+	if (cvLogMode == null)
 	{
-		return cvLogMode;
+		cvLogMode = FindConVar(conVarName);
 	}
 
-	return FindConVar(conVarName);
+	if (cvLogMode != null)
+	{
+		cvLogMode.AddChangeHook(L4D2CS_OnLogModeChanged_EnsureDebugLogFolder);
+	}
+
+	return cvLogMode;
 }
 
 stock bool L4D2CS_IsNormalLogMode(ConVar cvLogMode)
@@ -194,15 +199,24 @@ stock void L4D2CS_EnsureLogFolder(ConVar cvLogMode)
 	s_bEnsured = DirExists(folderPath);
 }
 
-stock void L4D2CS_BuildLogPath(ConVar cvLogMode, const char[] fileName, char[] buffer, int maxlen)
+stock void L4D2CS_BuildLogPath(const char[] fileName, char[] buffer, int maxlen)
 {
-	L4D2CS_EnsureLogFolder(cvLogMode);
 	BuildPath(Path_SM, buffer, maxlen, "%s/%s", L4D2_COMMSUITE_LOG_FOLDER_PATH, fileName);
 }
 
-stock void L4D2CS_EnsureDebugLogPathReady(ConVar cvLogMode)
+stock void L4D2CS_EnsureDebugLogFolderForMode(ConVar cvLogMode)
 {
+	if (!L4D2CS_IsDebugLogMode(cvLogMode))
+	{
+		return;
+	}
+
 	L4D2CS_EnsureLogFolder(cvLogMode);
+}
+
+stock void L4D2CS_OnLogModeChanged_EnsureDebugLogFolder(ConVar cvLogMode, const char[] oldValue, const char[] newValue)
+{
+	L4D2CS_EnsureDebugLogFolderForMode(cvLogMode);
 }
 
 stock void L4D2CS_BuildNormalLogPath(const char[] fileName, char[] buffer, int maxlen)

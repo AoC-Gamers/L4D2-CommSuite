@@ -79,7 +79,7 @@ public void OnPluginStart()
 	g_cvDebugMask = CreateConVar("l4d2_commguard_debug_mask", "0", "Debug bitmask. 1=general 2=provider 4=external (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvChatEnabled = CreateConVar("l4d2_commguard_chat_enabled", "1", "Enable chat guard checks.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvVoiceEnabled = CreateConVar("l4d2_commguard_voice_enabled", "1", "Enable voice guard checks.", FCVAR_NONE, true, 0.0, true, 1.0);
-	L4D2CS_BuildLogPath(g_cvLogMode, "l4d2_commguard.log", g_sLogPath, sizeof(g_sLogPath));
+	L4D2CS_BuildLogPath("l4d2_commguard.log", g_sLogPath, sizeof(g_sLogPath));
 
 	RegAdminCmd("sm_l4d2_commguard_status", Command_L4D2CommGuard_Status, ADMFLAG_GENERIC, "Show L4D2 CommGuard status.");
 
@@ -171,6 +171,7 @@ public void OnLibraryRemoved(const char[] name)
 
 public void OnConfigsExecuted()
 {
+	L4D2CS_EnsureDebugLogFolderForMode(g_cvLogMode);
 	L4D2CommGuard_RefreshAllVoiceStates();
 }
 
@@ -270,7 +271,6 @@ bool L4D2CommGuard_DebugEnabled(L4D2CommGuardDebugMask debugMask)
 
 void L4D2CommGuard_LogLine(const char[] tag, const char[] message)
 {
-	L4D2CS_EnsureDebugLogPathReady(g_cvLogMode);
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_COMMGUARD_LOG_PREFIX, tag, message);
 }
 
@@ -311,7 +311,6 @@ void L4D2CommGuard_LogFormatted(L4D2CommGuardDebugMask debugMask, const char[] t
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
-	L4D2CS_EnsureDebugLogPathReady(g_cvLogMode);
 	L4D2CommGuard_LogLine(tag, buffer);
 }
 
