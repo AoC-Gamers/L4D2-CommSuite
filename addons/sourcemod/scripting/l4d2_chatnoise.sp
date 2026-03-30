@@ -74,7 +74,7 @@ public void OnLibraryRemoved(const char[] name)
 
 public void OnPluginStart()
 {
-	g_cvLogMode = L4D2CS_EnsureLogModeConVar();
+	g_cvLogMode = L4D2CS_FindOrCreatePluginLogModeConVar("l4d2_chatnoise_log_mode", "L4D2 ChatNoise log mode. 0=off, 1=normal, 2=debug.");
 	g_cvDebugMask = CreateConVar("l4d2_chatnoise_debug_mask", "0", "Debug bitmask. 1=general 2=noise (all=3).", FCVAR_NONE, true, 0.0, true, 3.0);
 	g_cvEnabled = CreateConVar("l4d2_chatnoise_enabled", "1", "Enable noise filtering.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvSuppressPlayerConnect = CreateConVar("l4d2_chatnoise_suppress_player_connect", "1", "Suppress player connect chat noise.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -83,7 +83,7 @@ public void OnPluginStart()
 	g_cvSuppressServerCvar = CreateConVar("l4d2_chatnoise_suppress_server_cvar", "1", "Suppress server_cvar chat noise.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvSuppressNameChange = CreateConVar("l4d2_chatnoise_suppress_name_change", "1", "Suppress name change chat noise.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvSuppressSourceModCvar = CreateConVar("l4d2_chatnoise_suppress_sm_cvar_change", "1", "Suppress SourceMod cvar change activity messages routed through SayText2 or TextMsg.", FCVAR_NONE, true, 0.0, true, 1.0);
-	L4D2CS_BuildLogPath("l4d2_chatnoise.log", g_sLogPath, sizeof(g_sLogPath));
+	L4D2CS_BuildLogPath(g_cvLogMode, "l4d2_chatnoise.log", g_sLogPath, sizeof(g_sLogPath));
 
 	L4D2CN_InitCommands();
 	L4D2CS_EnsureAutoExecFolder();
@@ -103,7 +103,7 @@ bool L4D2CN_DebugEnabled(int bit)
 
 void L4D2CN_LogLine(const char[] tag, const char[] message)
 {
-	L4D2CS_EnsureDebugLogPathReady();
+	L4D2CS_EnsureDebugLogPathReady(g_cvLogMode);
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_CHATNOISE_LOG_PREFIX, tag, message);
 }
 

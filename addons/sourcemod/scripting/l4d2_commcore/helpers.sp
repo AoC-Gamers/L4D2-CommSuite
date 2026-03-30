@@ -379,7 +379,7 @@ Action L4D2Comm_CallSayText2Forward(const char[] msgKey, const char[] param1, co
 
 void L4D2Comm_LogLine(const char[] tag, const char[] message)
 {
-	L4D2CS_EnsureDebugLogPathReady();
+	L4D2CS_EnsureDebugLogPathReady(g_cvL4D2Comm_LogMode);
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_COMMCORE_LOG_PREFIX, tag, message);
 }
 

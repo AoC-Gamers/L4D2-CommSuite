@@ -20,6 +20,8 @@ enum RelayDebugMask
 	Debug_Voice = 4
 };
 
+#define L4D2_COMMRELAY_NORMAL_LOG_FILE "l4d2_commrelay.log"
+
 ConVar g_cvDebugMask = null;
 ConVar g_cvChatEnabled = null;
 ConVar g_cvChatSpecTeam = null;
@@ -68,7 +70,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 
 public void OnPluginStart()
 {
-	g_cvLogMode = L4D2CS_EnsureLogModeConVar();
+	g_cvLogMode = L4D2CS_FindOrCreatePluginLogModeConVar("l4d2_commrelay_log_mode", "L4D2 CommRelay log mode. 0=off, 1=normal, 2=debug.");
 	g_cvDebugMask = CreateConVar("l4d2_commrelay_debug_mask", "0", "Debug bitmask. 1=general 2=chat 4=voice (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvChatEnabled = CreateConVar("l4d2_commrelay_chat_enabled", "1", "Enable chat relay handling.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvChatSpecTeam = CreateConVar("l4d2_commrelay_chat_spec_team", "0", "Relay survivor and infected team chat to spectators.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -77,7 +79,7 @@ public void OnPluginStart()
 	g_cvVoiceDefaultEnabled = CreateConVar("l4d2_commrelay_voice_default_enabled", "1", "Default spectator voice relay state for new users.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvVoiceSurvivor = CreateConVar("l4d2_commrelay_voice_survivor", "1", "Allow spectators to hear survivor voice chat.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvVoiceInfected = CreateConVar("l4d2_commrelay_voice_infected", "1", "Allow spectators to hear infected voice chat.", FCVAR_NONE, true, 0.0, true, 1.0);
-	L4D2CS_BuildLogPath("l4d2_commrelay.log", g_sLogPath, sizeof(g_sLogPath));
+	L4D2CS_BuildLogPath(g_cvLogMode, "l4d2_commrelay.log", g_sLogPath, sizeof(g_sLogPath));
 
 	g_hCookieVoiceEnabled = RegClientCookie("l4d2_commrelay_voice_enabled", "L4D2 CommRelay spectator voice preference", CookieAccess_Protected);
 
@@ -274,7 +276,7 @@ public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel cha
 
 public void L4D2CommGuard_OnClientVoiceBlockChanged(int client, bool blocked)
 {
-	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, "state", "subject=voice_block client=%N blocked=%d", client, blocked ? 1 : 0);
+	L4D2CS_NormalLogToFileEx(g_cvLogMode, L4D2_COMMRELAY_NORMAL_LOG_FILE, L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, "state", "subject=voice_block client=%N blocked=%d", client, blocked ? 1 : 0);
 	Relay_LogFormatted(Debug_Voice, "voice", "Voice block state changed. client=%d blocked=%d", client, blocked);
 	QueueRefreshAllVoiceOverrides();
 }
@@ -429,7 +431,7 @@ void Relay_LogFormatted(RelayDebugMask debugMask, const char[] tag, const char[]
 
 	static char buffer[512];
 	VFormat(buffer, sizeof(buffer), format, 4);
-	L4D2CS_EnsureDebugLogPathReady();
+	L4D2CS_EnsureDebugLogPathReady(g_cvLogMode);
 	LogToFileEx(g_sLogPath, "%s[%s] %s", L4D2_COMMSUITE_COMMRELAY_LOG_PREFIX, tag, buffer);
 }
 
