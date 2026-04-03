@@ -5,6 +5,7 @@
 #include <console>
 #include <colors>
 #include <left4dhooks_stocks>
+#include <localizer>
 #include <sdktools_voice>
 #include <sourcemod>
 
@@ -33,10 +34,12 @@ ConVar g_cvVoiceInfected = null;
 ConVar g_cvLogMode = null;
 
 Handle g_hCookieVoiceEnabled = INVALID_HANDLE;
+Localizer g_hRelayLocalizer;
 
 bool g_bCoreLibrary = false;
 bool g_bCommGuardLibrary = false;
 bool g_bLateLoad = false;
+bool g_bRelayLocalizerReady = false;
 bool g_bVoiceEnabledByClient[MAXPLAYERS + 1];
 bool g_bCookiesCached[MAXPLAYERS + 1];
 bool g_bPendingCookieSave[MAXPLAYERS + 1];
@@ -70,6 +73,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 
 public void OnPluginStart()
 {
+	g_hRelayLocalizer = new Localizer(LC_INSTALL_MODE_FULLCACHE);
+	g_bRelayLocalizerReady = g_hRelayLocalizer.IsReady();
+	g_hRelayLocalizer.Delegate_InitCompleted(Relay_OnLocalizerReady);
+
 	g_cvLogMode = L4D2CS_FindOrCreatePluginLogModeConVar("l4d2_commrelay_log_mode", "L4D2 CommRelay log mode. 0=off, 1=normal, 2=debug.");
 	g_cvDebugMask = CreateConVar("l4d2_commrelay_debug_mask", "0", "Debug bitmask. 1=general 2=chat 4=voice (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvChatEnabled = CreateConVar("l4d2_commrelay_chat_enabled", "1", "Enable chat relay handling.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -182,6 +189,12 @@ public void OnConfigsExecuted()
 	QueueRefreshAllVoiceOverrides();
 }
 
+public void Relay_OnLocalizerReady()
+{
+	g_bRelayLocalizerReady = true;
+	Relay_LogFormatted(Debug_General, "debug", "Localizer ready.");
+}
+
 public void OnClientPutInServer(int client)
 {
 	g_bVoiceEnabledByClient[client] = g_cvVoiceDefaultEnabled != null ? g_cvVoiceDefaultEnabled.BoolValue : true;
@@ -259,9 +272,6 @@ public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel cha
 		return;
 	}
 
-	char teamLabel[16];
-	L4D2CS_GetTeamLabel(authorTeam, teamLabel, sizeof(teamLabel));
-
 	for (int target = 1; target <= MaxClients; target++)
 	{
 		if (!Relay_ShouldRelayTeamChatToTarget(client, target, authorTeam))
@@ -269,10 +279,69 @@ public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel cha
 			continue;
 		}
 
-		CPrintToChatEx(target, client, "{olive}(%s){default} %s{teamcolor}%s{default}: %s", teamLabel, prefix, name, text);
+		char message[512];
+		char teamLabel[32];
+		if (!Relay_GetLocalizedTeamLabel(authorTeam, teamLabel, sizeof(teamLabel)))
+		{
+			L4D2CS_GetTeamLabel(authorTeam, teamLabel, sizeof(teamLabel));
+		}
+
+		FormatEx(message, sizeof(message), "(%s) %s{teamcolor}%s{default}: %s", teamLabel, prefix, name, text);
+		CPrintToChatEx(target, client, "%s", message);
 	}
 
 	Relay_LogFormatted(Debug_Chat, "chat", "Relayed team chat. author=%N team=%d prefix=%s name=%s text=%s", client, authorTeam, prefix, name, text);
+}
+
+static bool Relay_ExtractParenthesizedToken(const char[] szSource, char[] szBuffer, int iMaxLen)
+{
+	int iOpen = FindCharInString(szSource, '(');
+	if (iOpen == -1)
+	{
+		return false;
+	}
+
+	int iClose = FindCharInString(szSource[iOpen + 1], ')');
+	if (iClose == -1)
+	{
+		return false;
+	}
+
+	int iLength = iClose;
+	if (iLength <= 0 || iLength >= iMaxLen)
+	{
+		return false;
+	}
+
+	strcopy(szBuffer, iMaxLen, szSource[iOpen + 1]);
+	szBuffer[iLength] = '\0';
+	return true;
+}
+
+static bool Relay_GetLocalizedTeamLabel(L4DTeam eTeam, char[] szBuffer, int iMaxLen)
+{
+	if (!g_bRelayLocalizerReady)
+	{
+		return false;
+	}
+
+	char szPhraseKey[64];
+	switch (eTeam)
+	{
+		case L4DTeam_Survivor: strcopy(szPhraseKey, sizeof(szPhraseKey), "#L4D_Chat_Survivor");
+		case L4DTeam_Infected: strcopy(szPhraseKey, sizeof(szPhraseKey), "#L4D_Chat_Infected");
+		case L4DTeam_Spectator: strcopy(szPhraseKey, sizeof(szPhraseKey), "#L4D_Chat_Spec");
+		default: return false;
+	}
+
+	char szTemplate[256];
+	strcopy(szTemplate, sizeof(szTemplate), Loc_Translate(LANG_SERVER, szPhraseKey));
+	if (szTemplate[0] == '\0' || szTemplate[0] == '#')
+	{
+		return false;
+	}
+
+	return Relay_ExtractParenthesizedToken(szTemplate, szBuffer, iMaxLen);
 }
 
 public void L4D2CommGuard_OnClientVoiceBlockChanged(int client, bool blocked)

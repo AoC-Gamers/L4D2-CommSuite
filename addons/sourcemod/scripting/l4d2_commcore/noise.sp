@@ -164,7 +164,7 @@ Action L4D2Comm_HandleNoiseUserMessage_TextMsg(UserMsg msg_id, BfRead msg, const
 	msgParam2[0] = '\0';
 	msgParam3[0] = '\0';
 	msgParam4[0] = '\0';
-	msg.ReadByte();
+	int msgDest = msg.ReadByte();
 	msg.ReadString(msgKey, sizeof(msgKey), false);
 	msg.ReadString(msgParam1, sizeof(msgParam1), false);
 	msg.ReadString(msgParam2, sizeof(msgParam2), false);
@@ -179,10 +179,27 @@ Action L4D2Comm_HandleNoiseUserMessage_TextMsg(UserMsg msg_id, BfRead msg, const
 
 	int firstClient = playersNum > 0 ? players[0] : 0;
 	Action result = L4D2Comm_CallTextMsgForward(msgKey, msgParam1, msgParam2, msgParam3, msgParam4, firstClient, playersNum, reliable, init);
+	if (result < Plugin_Handled && L4D2Comm_IsLocalizedChatPromptKey(msgKey))
+	{
+		L4D2Comm_EmitLocalizedPromptTextMsg(players, playersNum, msgDest, msgKey);
+		L4D2Comm_Noise(
+			"%s localized prompt replaced. key=%s dest=%d players=%d first=%d reliable=%d init=%d",
+			msgName,
+			msgKey,
+			msgDest,
+			playersNum,
+			firstClient,
+			reliable,
+			init
+		);
+		return Plugin_Handled;
+	}
+
 	L4D2Comm_Noise(
-		"%s intercepted. key=%s p1=%s p2=%s p3=%s p4=%s players=%d first=%d reliable=%d init=%d result=%d",
+		"%s intercepted. key=%s dest=%d p1=%s p2=%s p3=%s p4=%s players=%d first=%d reliable=%d init=%d result=%d",
 		msgName,
 		msgKey,
+		msgDest,
 		msgParam1,
 		msgParam2,
 		msgParam3,

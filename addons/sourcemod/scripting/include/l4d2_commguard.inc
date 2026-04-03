@@ -1,6 +1,6 @@
 /**
  * L4D2 CommGuard
- * Version: 0.2.0
+ * Version: 0.3.0
  *
  * Unified communication guard runtime for L4D2 CommSuite.
  * Provides chat and voice guard APIs backed by a single runtime.
@@ -14,7 +14,7 @@
 #include <l4d2_commcore>
 
 #define L4D2_COMMGUARD_LIBRARY "l4d2_commguard"
-#define L4D2_COMMGUARD_VERSION "0.2.0"
+#define L4D2_COMMGUARD_VERSION "0.3.0"
 
 /**
  * Punishment providers recognized by CommGuard.

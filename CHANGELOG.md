@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0
+
+Ajuste del render de chat y del relay de chat de equipo para `L4D2-CommSuite`.
+
+- `l4d2_commcore`
+  - expone version `0.3.0` para la API publica del core
+  - integra `localizer` de forma segura, inicializando el runtime y evitando consultas antes de que este listo
+  - localiza prompts de chat de equipo en `TextMsg` usando idioma de servidor
+  - deja de reconstruir el mensaje completo con las frases `#L4D_Chat_*` y pasa a traducir solo la etiqueta del equipo
+  - conserva el formato custom del chat, con nombre en `teamcolor` y etiqueta de equipo sin color
+- `l4d2_commrelay`
+  - expone version `0.3.0` para la API publica del relay
+  - corrige el relay de chat de equipo a spectators y SourceTV/replay alineando el render con `CommCore`
+  - inicializa `localizer` de forma segura para evitar fallos en relay cuando las frases aun no estan listas
+  - usa etiqueta de equipo traducida por idioma del servidor y conserva el formato custom del chat relayado
+- `l4d2_commguard`
+  - expone version `0.3.0` para la API publica del guard
+- `l4d2_chatnoise`
+  - expone version `0.3.0`
+- `l4d2_chatlog`
+  - expone version `0.3.0`
+
 ## 0.2.0
 
 Consolidacion operativa de logging y ajuste de ruido para `L4D2-CommSuite`.

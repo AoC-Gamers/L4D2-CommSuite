@@ -2,6 +2,7 @@
 #pragma newdecls required
 
 #include <colors>
+#include <localizer>
 #include <sourcemod>
 
 #include <l4d2_commcore>
@@ -17,8 +18,10 @@ enum L4D2CommDebugMask
 ConVar g_cvL4D2Comm_DebugMask = null;
 ConVar g_cvL4D2Comm_NoiseEnabled = null;
 ConVar g_cvL4D2Comm_LogMode = null;
+Localizer g_hL4D2Comm_Localizer;
 
 bool g_bL4D2Comm_CoreReady = false;
+bool g_bL4D2Comm_LocalizerReady = false;
 char g_sLogPath[PLATFORM_MAX_PATH];
 ArrayList g_aL4D2Comm_SuppressedChatPosts = null;
 
@@ -57,6 +60,10 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 
 public void OnPluginStart()
 {
+	g_hL4D2Comm_Localizer = new Localizer(LC_INSTALL_MODE_FULLCACHE);
+	g_bL4D2Comm_LocalizerReady = g_hL4D2Comm_Localizer.IsReady();
+	g_hL4D2Comm_Localizer.Delegate_InitCompleted(L4D2Comm_OnLocalizerReady);
+
 	g_cvL4D2Comm_LogMode = L4D2CS_FindOrCreatePluginLogModeConVar("l4d2_commcore_log_mode", "L4D2 CommCore log mode. 0=off, 1=normal, 2=debug.");
 	g_cvL4D2Comm_DebugMask = CreateConVar("l4d2_commcore_debug_mask", "0", "Debug bitmask. 1=general 2=hook 4=noise (all=7).", FCVAR_NONE, true, 0.0, true, 7.0);
 	g_cvL4D2Comm_NoiseEnabled = CreateConVar("l4d2_commcore_noise_enabled", "1", "Enable communication noise filtering hooks.", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -75,6 +82,12 @@ public void OnPluginStart()
 public void OnConfigsExecuted()
 {
 	L4D2CS_EnsureDebugLogFolderForMode(g_cvL4D2Comm_LogMode);
+}
+
+public void L4D2Comm_OnLocalizerReady()
+{
+	g_bL4D2Comm_LocalizerReady = true;
+	L4D2Comm_Debug("Localizer ready.");
 }
 
 public void OnPluginEnd()

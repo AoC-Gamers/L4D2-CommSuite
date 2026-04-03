@@ -112,13 +112,130 @@ void L4D2Comm_BuildDefaultChatRender(int client, char[] prefix, char[] name, int
 	FormatEx(name, nameLen, "%N", client);
 }
 
+bool L4D2Comm_IsLocalizedChatPromptKey(const char[] msgKey)
+{
+	bool bIsPromptKey =
+		StrEqual(msgKey, "#L4D_Chat_Prompt_Team_Survivor")
+		|| StrEqual(msgKey, "#L4D_Chat_Prompt_Team_Infected")
+		|| StrEqual(msgKey, "#L4D_Chat_Prompt_Team_General");
+	return bIsPromptKey;
+}
+
+bool L4D2Comm_BuildLocalizedPromptMessage(const char[] msgKey, char[] buffer, int maxlen)
+{
+	if (!g_bL4D2Comm_LocalizerReady)
+	{
+		return false;
+	}
+
+	strcopy(buffer, maxlen, Loc_Translate(LANG_SERVER, msgKey));
+	return buffer[0] != '\0' && buffer[0] != '#';
+}
+
+void L4D2Comm_SendTextMsg(int iClient, int iMsgDest, const char[] szMessage)
+{
+	Handle hBuffer = StartMessageOne("TextMsg", iClient, USERMSG_RELIABLE | USERMSG_BLOCKHOOKS);
+	if (hBuffer == null)
+	{
+		return;
+	}
+
+	if (GetFeatureStatus(FeatureType_Native, "GetUserMessageType") == FeatureStatus_Available && GetUserMessageType() == UM_Protobuf)
+	{
+		PbSetInt(hBuffer, "msg_dst", iMsgDest);
+		PbAddString(hBuffer, "params", szMessage);
+	}
+	else
+	{
+		BfWriteByte(hBuffer, iMsgDest);
+		BfWriteString(hBuffer, szMessage);
+	}
+
+	EndMessage();
+}
+
+void L4D2Comm_EmitLocalizedPromptTextMsg(const int[] players, int playersNum, int iMsgDest, const char[] msgKey)
+{
+	char szMessage[192];
+
+	for (int i = 0; i < playersNum; i++)
+	{
+		int iClient = players[i];
+		if (!L4D2Comm_IsValidClient(iClient))
+		{
+			continue;
+		}
+
+		if (!L4D2Comm_BuildLocalizedPromptMessage(msgKey, szMessage, sizeof(szMessage)))
+		{
+			continue;
+		}
+
+		L4D2Comm_SendTextMsg(iClient, iMsgDest, szMessage);
+	}
+}
+
+bool L4D2Comm_ExtractParenthesizedToken(const char[] source, char[] buffer, int maxlen)
+{
+	int iOpen = FindCharInString(source, '(');
+	if (iOpen == -1)
+	{
+		return false;
+	}
+
+	int iClose = FindCharInString(source[iOpen + 1], ')');
+	if (iClose == -1)
+	{
+		return false;
+	}
+
+	int iLength = iClose;
+	if (iLength <= 0 || iLength >= maxlen)
+	{
+		return false;
+	}
+
+	strcopy(buffer, maxlen, source[iOpen + 1]);
+	buffer[iLength] = '\0';
+	return true;
+}
+
+bool L4D2Comm_GetLocalizedTeamLabel(L4DTeam team, char[] buffer, int maxlen)
+{
+	if (!g_bL4D2Comm_LocalizerReady)
+	{
+		return false;
+	}
+
+	char szPhraseKey[64];
+	switch (team)
+	{
+		case L4DTeam_Survivor: strcopy(szPhraseKey, sizeof(szPhraseKey), "#L4D_Chat_Survivor");
+		case L4DTeam_Infected: strcopy(szPhraseKey, sizeof(szPhraseKey), "#L4D_Chat_Infected");
+		case L4DTeam_Spectator: strcopy(szPhraseKey, sizeof(szPhraseKey), "#L4D_Chat_Spec");
+		default: return false;
+	}
+
+	char szTemplate[256];
+	strcopy(szTemplate, sizeof(szTemplate), Loc_Translate(LANG_SERVER, szPhraseKey));
+	if (szTemplate[0] == '\0' || szTemplate[0] == '#')
+	{
+		return false;
+	}
+
+	return L4D2Comm_ExtractParenthesizedToken(szTemplate, buffer, maxlen);
+}
+
 void L4D2Comm_PrintRenderedChatToServer(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text)
 {
 	char line[512];
 	if (channel == L4D2CommChannel_Team)
 	{
-		char teamLabel[16];
-		L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
+		char teamLabel[32];
+		if (!L4D2Comm_GetLocalizedTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel)))
+		{
+			L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
+		}
 		FormatEx(line, sizeof(line), "(%s) %s%s: %s", teamLabel, prefix, name, text);
 	}
 	else
@@ -178,17 +295,6 @@ void L4D2Comm_EmitRenderedChat(int client, L4D2CommChannel channel, const char[]
 	L4D2Comm_PrintRenderedChatToServer(client, channel, prefix, name, text);
 
 	char message[512];
-	if (channel == L4D2CommChannel_Team)
-	{
-		char teamLabel[16];
-		L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
-		FormatEx(message, sizeof(message), "{olive}(%s){default} %s{teamcolor}%s{default}: %s", teamLabel, prefix, name, text);
-	}
-	else
-	{
-		FormatEx(message, sizeof(message), "%s{teamcolor}%s{default}: %s", prefix, name, text);
-	}
-
 	for (int target = 1; target <= MaxClients; target++)
 	{
 		if (!L4D2CS_IsConnectedClient(target))
@@ -202,6 +308,7 @@ void L4D2Comm_EmitRenderedChat(int client, L4D2CommChannel channel, const char[]
 			{
 				continue;
 			}
+
 		}
 		else
 		{
@@ -209,6 +316,21 @@ void L4D2Comm_EmitRenderedChat(int client, L4D2CommChannel channel, const char[]
 			{
 				continue;
 			}
+		}
+
+		if (channel == L4D2CommChannel_Team)
+		{
+			char teamLabel[32];
+			if (!L4D2Comm_GetLocalizedTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel)))
+			{
+				L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
+			}
+
+			FormatEx(message, sizeof(message), "(%s) %s{teamcolor}%s{default}: %s", teamLabel, prefix, name, text);
+		}
+		else
+		{
+			FormatEx(message, sizeof(message), "%s{teamcolor}%s{default}: %s", prefix, name, text);
 		}
 
 		CPrintToChatEx(target, client, "%s", message);
