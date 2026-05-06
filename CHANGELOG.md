@@ -2,6 +2,9 @@
 
 ## Sin versionar
 
+- `l4d2_chatlog`
+  - valida el cliente antes de resolver equipo o nombre en callbacks post-chat renderizado
+  - evita errores al loguear chat cuando el autor ya no sigue conectado y usa fallback seguro para equipo/nombre
 - `l4d2_commguard`
   - corrige el helper compartido `L4D2CS_NormalLogToFileEx` para alinear correctamente `VFormat` con los varargs
   - evita errores `Client index ... is invalid` al loguear cambios de estado de voz con formatos como `client=%N`
