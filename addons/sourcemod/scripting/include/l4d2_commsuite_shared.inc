@@ -236,7 +236,7 @@ stock void L4D2CS_NormalLogToFileEx(ConVar cvLogMode, const char[] fileName, con
 	L4D2CS_BuildNormalLogPath(fileName, logPath, sizeof(logPath));
 
 	static char buffer[1024];
-	VFormat(buffer, sizeof(buffer), format, 5);
+	VFormat(buffer, sizeof(buffer), format, 6);
 
 	if (tag[0] != '\0')
 	{

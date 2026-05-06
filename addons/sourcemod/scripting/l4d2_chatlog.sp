@@ -948,6 +948,28 @@ void GetIdentityFields(int client, char[] steam2, int steam2Len, char[] steam64,
 	}
 }
 
+void ResolveClientTeamLabel(int client, char[] buffer, int maxlen)
+{
+	if (IsValidClient(client) && IsClientInGame(client))
+	{
+		L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), buffer, maxlen);
+		return;
+	}
+
+	strcopy(buffer, maxlen, "Unknown");
+}
+
+void ResolveBlockedClientLabel(int client, char[] buffer, int maxlen)
+{
+	if (IsValidClient(client) && IsClientInGame(client))
+	{
+		FormatEx(buffer, maxlen, "%N", client);
+		return;
+	}
+
+	FormatEx(buffer, maxlen, "#%d", client);
+}
+
 void FormatRenderedChatLine(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text, char[] buffer, int maxlen)
 {
 	char timestamp[64];
@@ -971,7 +993,7 @@ void FormatRenderedChatLine(int client, L4D2CommChannel channel, const char[] pr
 		return;
 	}
 
-	L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
+	ResolveClientTeamLabel(client, teamLabel, sizeof(teamLabel));
 	FormatEx(buffer, maxlen, "[%s] [%s][%s] %s%s : %s", timestamp, teamLabel, channelLabel, prefix, name, text);
 }
 
@@ -980,6 +1002,7 @@ void FormatBlockedChatLine(int client, L4D2CommChannel channel, const char[] tex
 	char timestamp[64];
 	char teamLabel[16];
 	char channelLabel[20];
+	char clientLabel[64];
 
 	GetTimestamp(timestamp, sizeof(timestamp));
 
@@ -998,8 +1021,9 @@ void FormatBlockedChatLine(int client, L4D2CommChannel channel, const char[] tex
 		return;
 	}
 
-	L4D2CS_GetTeamLabel(L4D_GetClientTeam(client), teamLabel, sizeof(teamLabel));
-	FormatEx(buffer, maxlen, "[%s] [%s][%s] %N : %s", timestamp, teamLabel, channelLabel, client, text);
+	ResolveClientTeamLabel(client, teamLabel, sizeof(teamLabel));
+	ResolveBlockedClientLabel(client, clientLabel, sizeof(clientLabel));
+	FormatEx(buffer, maxlen, "[%s] [%s][%s] %s : %s", timestamp, teamLabel, channelLabel, clientLabel, text);
 }
 
 void FormatLifecycleLine(int client, const char[] actionName, const char[] detailText, char[] buffer, int maxlen)
