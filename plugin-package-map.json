@@ -1,0 +1,44 @@
+{
+  "build": {
+    "plugins": {
+      "l4d2_commsuite": [
+        "l4d2_chatlog",
+        "l4d2_chatnoise",
+        "l4d2_commcore",
+        "l4d2_commguard",
+        "l4d2_commrelay"
+      ]
+    }
+  },
+  "artifact": {
+    "addons": {
+      "sourcemod": {
+        "configs": {
+          "dirs": [
+            "sql-init-commsuite"
+          ]
+        },
+        "scripting": {
+          "files": [
+            "l4d2_chatlog.sp",
+            "l4d2_chatnoise.sp",
+            "l4d2_commcore.sp",
+            "l4d2_commguard.sp",
+            "l4d2_commrelay.sp"
+          ],
+          "dirs": [
+            "l4d2_commcore"
+          ],
+          "include": {
+            "files": [
+              "l4d2_commcore.inc",
+              "l4d2_commguard.inc",
+              "l4d2_commrelay.inc",
+              "l4d2_commsuite_shared.inc"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
