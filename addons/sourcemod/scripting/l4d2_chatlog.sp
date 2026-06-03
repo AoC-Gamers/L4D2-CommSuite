@@ -849,7 +849,7 @@ bool WriteRawLine(const char[] filePath, const char[] line)
 		return false;
 	}
 
-	WriteFileLine(file, line);
+	WriteFileLine(file, "%s", line);
 	delete file;
 	return true;
 }
