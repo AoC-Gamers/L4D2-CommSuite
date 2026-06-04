@@ -32,6 +32,11 @@ on:
       - plugin-package-map.json
       - addons/sourcemod/**
   workflow_dispatch:
+    inputs:
+      sourcemod_version:
+        description: SourceMod version to download
+        required: false
+        default: "1.12"
 
 concurrency:
   group: sourcemod-build-${{ github.ref }}
