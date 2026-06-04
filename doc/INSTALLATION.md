@@ -33,13 +33,18 @@ La forma recomendada es descargar los binarios ya generados por CI en GitHub Rel
 Despliegue:
 
 1. Descarga el `.zip` del canal que quieras usar.
-2. Extrae `addons/sourcemod/` dentro del servidor.
+2. Extrae `addons/sourcemod/` dentro del servidor o copia los binarios en `addons/sourcemod/plugins/l4d2_commsuite/`.
 3. Si otro proyecto va a consumir la API, usa las includes publicas que vienen en el paquete.
 4. Reinicia el servidor o carga los plugins.
 
 Compilacion local:
 
 - solo es necesaria si vas a desarrollar o modificar la suite
+- flujo recomendado:
+  - `make deps-smx`
+  - `make build-smx`
+  - `make package-smx`
+  - `make release`
 
 ## Autoexec y logs
 

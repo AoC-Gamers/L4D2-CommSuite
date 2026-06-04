@@ -52,6 +52,7 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 ## Documentacion
 
 - [Instalacion](doc/INSTALLATION.md)
+- [Sistema de build](doc/BUILD_SYSTEM.md)
 - [Plugins y Dependencias](doc/PLUGINS.md)
 - [Changelog](CHANGELOG.md)
 - [Flujo de chat textual](doc/TEXT_CHAT_FLOW.md)
@@ -68,3 +69,10 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 - el core gobierna texto
 - la capa de voz vive en satelites
 - `commguard` es el runtime unico de restricciones de comunicacion
+
+## Build local
+
+- `make deps-smx`
+- `make build-smx`
+- `make package-smx`
+- `make release`
