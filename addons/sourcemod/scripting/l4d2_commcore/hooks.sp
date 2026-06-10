@@ -113,6 +113,11 @@ public Action L4D2Comm_Event_PlayerNameChange(Event event, const char[] name, bo
 
 public Action L4D2Comm_Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
+	if (dontBroadcast)
+	{
+		return Plugin_Continue;
+	}
+
 	return L4D2Comm_HandleNoiseEvent_PlayerTeam(event);
 }
 

@@ -179,7 +179,18 @@ public void OnMapStart()
 
 public void Event_PlayerTeam(Event event, const char[] name, bool dontBroadcast)
 {
-	int client = GetClientOfUserId(event.GetInt("userid"));
+	if (dontBroadcast)
+	{
+		return;
+	}
+
+	int userId = event.GetInt("userid");
+	if (userId <= 0)
+	{
+		return;
+	}
+
+	int client = GetClientOfUserId(userId);
 	if (!IsValidClient(client))
 	{
 		return;
