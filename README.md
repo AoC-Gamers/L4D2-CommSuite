@@ -20,6 +20,7 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 - `l4d2_chatlog`
   - auditoria de chat y lifecycle a archivo
   - auditoria SQL opcional de joins
+  - API de exportación acotada para identificar o fotografiar el log activo
 
 ## Diseño
 
@@ -28,6 +29,9 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 - `commguard` expone un modelo de voz `pre-check / resolved / changed` para el estado efectivo de bloqueo.
 - `commguard` y `commrelay` unifican las capas transversales de restricciones y relay.
 - `chatnoise` y `chatlog` siguen como satelites especificos de texto.
+- `chatlog` conserva ownership del archivo diario y sólo exporta snapshots con
+  UUID bajo `addons/sourcemod/data/l4d2_chatlog/exports/`; la raíz compartida
+  es setgid `2770` y los snapshots quedan `0660`, sin acceso world.
 - la suite usa una carpeta comun para autoexec y logs:
   - `cfg/sourcemod/l4d2_commsuite/`
   - `addons/sourcemod/logs/l4d2_commsuite/`
@@ -58,6 +62,7 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 - [Flujo de chat textual](doc/TEXT_CHAT_FLOW.md)
 - [Flujo de voz](doc/VOICE_CHAT_FLOW.md)
 - [Auditoria SQL de joins](doc/JOIN_AUDIT_SQL.md)
+- [Integración de exportación para BanSystem](doc/BANSYSTEM_CHAT_EXPORT.md)
 
 ## SQL
 

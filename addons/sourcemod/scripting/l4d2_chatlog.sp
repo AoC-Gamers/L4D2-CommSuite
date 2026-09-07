@@ -6,6 +6,7 @@
 #include <sourcemod>
 #include <geoip>
 #include <l4d2_commcore>
+#include <l4d2_chatlog>
 #include <l4d2_commsuite_shared>
 
 enum DebugMask
@@ -16,9 +17,18 @@ enum DebugMask
 	Debug_SQL = 8
 };
 
-#define L4D2_CHATLOG_VERSION "0.3.0"
+#define L4D2_CHATLOG_VERSION "0.4.1"
 #define L4D2_CHATLOG_SQL_TABLE "l4d2_chatlog_joins"
 #define L4D2_CHATLOG_NORMAL_LOG_FILE "l4d2_chatlog.log"
+#define L4D2_CHATLOG_EXPORT_ROOT "data/l4d2_chatlog/exports"
+#define L4D2_CHATLOG_EXPORT_MAX_BYTES 8388608
+#define L4D2_CHATLOG_EXPORT_MAX_FILES 32
+#define L4D2_CHATLOG_EXPORT_MAX_AGE 86400
+#define L4D2_CHATLOG_EXPORT_SETGID 0x0400
+#define L4D2_CHATLOG_EXPORT_PARENT_MODE (FPERM_U_READ | FPERM_U_WRITE | FPERM_U_EXEC | FPERM_G_READ | FPERM_G_WRITE | FPERM_G_EXEC)
+#define L4D2_CHATLOG_EXPORT_DIRECTORY_MODE (L4D2_CHATLOG_EXPORT_SETGID | FPERM_U_READ | FPERM_U_WRITE | FPERM_U_EXEC | FPERM_G_READ | FPERM_G_WRITE | FPERM_G_EXEC)
+#define L4D2_CHATLOG_EXPORT_FILE_MODE (FPERM_U_READ | FPERM_U_WRITE | FPERM_G_READ | FPERM_G_WRITE)
+#define L4D2_CHATLOG_EXPORT_PERMISSION_MASK 0x0fff
 
 ConVar g_cvDebugMask = null;
 ConVar g_cvEnabled = null;
@@ -75,6 +85,9 @@ static void ChatLog_RefreshLibraryState()
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 {
+	RegPluginLibrary(L4D2_CHATLOG_LIBRARY);
+	CreateNative("L4D2ChatLog_GetActiveFile", Native_L4D2ChatLogGetActiveFile);
+	CreateNative("L4D2ChatLog_CreateSnapshot", Native_L4D2ChatLogCreateSnapshot);
 	g_bLateLoad = late;
 	ChatLog_RefreshLibraryState();
 	return APLRes_Success;
@@ -830,6 +843,392 @@ void EnsureLogTargets()
 		g_bMapBannerPending = true;
 		LogFormatted(Debug_General, "debug", "Rotated log targets. chat=%s join=%s", g_sChatFile, g_sJoinFile);
 	}
+}
+
+public int Native_L4D2ChatLogGetActiveFile(Handle plugin, int numParams)
+{
+	int maxLength = GetNativeCell(2);
+	if (maxLength <= 0)
+	{
+		return false;
+	}
+
+	EnsureLogTargets();
+	char logicalPath[PLATFORM_MAX_PATH];
+	FormatEx(logicalPath, sizeof(logicalPath), "logs/chats/chat_%s.log", g_sCurrentStamp);
+	if (maxLength <= strlen(logicalPath))
+	{
+		return false;
+	}
+	SetNativeString(1, logicalPath, maxLength, true);
+	return true;
+}
+
+public int Native_L4D2ChatLogCreateSnapshot(Handle plugin, int numParams)
+{
+	int requestIdLength;
+	GetNativeStringLength(1, requestIdLength);
+	int maxLength = GetNativeCell(3);
+	if (requestIdLength != L4D2_CHATLOG_REQUEST_ID_LENGTH || maxLength <= 0)
+	{
+		return false;
+	}
+
+	char requestId[L4D2_CHATLOG_REQUEST_ID_LENGTH + 1];
+	GetNativeString(1, requestId, sizeof(requestId));
+	if (!ChatLog_IsCanonicalRequestId(requestId))
+	{
+		return false;
+	}
+
+	EnsureLogTargets();
+	if (!FileExists(g_sChatFile) || !ChatLog_EnsureExportRoot())
+	{
+		return false;
+	}
+
+	int sourceSize = FileSize(g_sChatFile);
+	if (sourceSize < 0 || sourceSize > L4D2_CHATLOG_EXPORT_MAX_BYTES)
+	{
+		return false;
+	}
+
+	char logicalName[64];
+	char destination[PLATFORM_MAX_PATH];
+	char temporary[PLATFORM_MAX_PATH];
+	FormatEx(logicalName, sizeof(logicalName), "chatlog_%s.log", requestId);
+	if (maxLength <= strlen(logicalName))
+	{
+		return false;
+	}
+	BuildPath(Path_SM, destination, sizeof(destination), "%s/%s", L4D2_CHATLOG_EXPORT_ROOT, logicalName);
+	BuildPath(
+		Path_SM,
+		temporary,
+		sizeof(temporary),
+		"%s/.%s.%08x.tmp",
+		L4D2_CHATLOG_EXPORT_ROOT,
+		logicalName,
+		GetURandomInt()
+	);
+
+	if (FileExists(destination))
+	{
+		if (!ChatLog_FilesEqual(g_sChatFile, destination, sourceSize))
+		{
+			return false;
+		}
+		if (!SetFilePermissions(destination, L4D2_CHATLOG_EXPORT_FILE_MODE))
+		{
+			return false;
+		}
+
+		SetNativeString(2, logicalName, maxLength, true);
+		return true;
+	}
+	if (!ChatLog_CleanupExports())
+	{
+		return false;
+	}
+
+	if (FileExists(temporary) && !DeleteFile(temporary))
+	{
+		return false;
+	}
+
+	if (!ChatLog_CopyStableFile(g_sChatFile, temporary, sourceSize))
+	{
+		DeleteFile(temporary);
+		return false;
+	}
+	if (!SetFilePermissions(temporary, L4D2_CHATLOG_EXPORT_FILE_MODE))
+	{
+		DeleteFile(temporary);
+		return false;
+	}
+
+	if (FileExists(destination) || !RenameFile(destination, temporary))
+	{
+		DeleteFile(temporary);
+		return false;
+	}
+
+	if (!SetFilePermissions(destination, L4D2_CHATLOG_EXPORT_FILE_MODE))
+	{
+		DeleteFile(destination);
+		return false;
+	}
+	SetNativeString(2, logicalName, maxLength, true);
+	return true;
+}
+
+bool ChatLog_IsCanonicalRequestId(const char[] requestId)
+{
+	for (int i = 0; i < L4D2_CHATLOG_REQUEST_ID_LENGTH; i++)
+	{
+		if (i == 8 || i == 13 || i == 18 || i == 23)
+		{
+			if (requestId[i] != '-')
+			{
+				return false;
+			}
+			continue;
+		}
+
+		if (!IsCharNumeric(requestId[i]) && (requestId[i] < 'a' || requestId[i] > 'f'))
+		{
+			return false;
+		}
+	}
+
+	return requestId[L4D2_CHATLOG_REQUEST_ID_LENGTH] == '\0';
+}
+
+bool ChatLog_EnsureExportRoot()
+{
+	char dataRoot[PLATFORM_MAX_PATH];
+	char componentRoot[PLATFORM_MAX_PATH];
+	char exportRoot[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, dataRoot, sizeof(dataRoot), "data");
+	BuildPath(Path_SM, componentRoot, sizeof(componentRoot), "data/l4d2_chatlog");
+	BuildPath(Path_SM, exportRoot, sizeof(exportRoot), L4D2_CHATLOG_EXPORT_ROOT);
+
+	if (!DirExists(dataRoot) && !CreateDirectory(dataRoot, L4D2_CHATLOG_EXPORT_PARENT_MODE))
+	{
+		return false;
+	}
+	if (!DirExists(componentRoot) && !CreateDirectory(componentRoot, L4D2_CHATLOG_EXPORT_DIRECTORY_MODE))
+	{
+		return false;
+	}
+	bool createdExportRoot;
+	if (!DirExists(exportRoot))
+	{
+		if (!CreateDirectory(exportRoot, L4D2_CHATLOG_EXPORT_DIRECTORY_MODE))
+		{
+			return false;
+		}
+		createdExportRoot = true;
+	}
+	if (!SetFilePermissions(componentRoot, L4D2_CHATLOG_EXPORT_DIRECTORY_MODE)
+		|| (createdExportRoot && !SetFilePermissions(exportRoot, L4D2_CHATLOG_EXPORT_DIRECTORY_MODE)))
+	{
+		return false;
+	}
+
+	int exportMode;
+	return GetFilePermissions(exportRoot, exportMode)
+		&& (exportMode & L4D2_CHATLOG_EXPORT_PERMISSION_MASK)
+			== L4D2_CHATLOG_EXPORT_DIRECTORY_MODE;
+}
+
+bool ChatLog_CopyStableFile(const char[] sourcePath, const char[] destinationPath, int expectedSize)
+{
+	File source = OpenFile(sourcePath, "rb");
+	if (source == null)
+	{
+		return false;
+	}
+
+	File destination = OpenFile(destinationPath, "wb");
+	if (destination == null)
+	{
+		delete source;
+		return false;
+	}
+
+	int buffer[1024];
+	int copiedBytes;
+	bool success = true;
+	int readBytes = ReadFile(source, buffer, sizeof(buffer), 1);
+	while (readBytes > 0)
+	{
+		if (!WriteFile(destination, buffer, readBytes, 1))
+		{
+			success = false;
+			break;
+		}
+		copiedBytes += readBytes;
+		readBytes = ReadFile(source, buffer, sizeof(buffer), 1);
+	}
+	if (readBytes < 0)
+	{
+		success = false;
+	}
+
+	if (success)
+	{
+		success = FlushFile(destination);
+	}
+	delete destination;
+	delete source;
+
+	return success
+		&& copiedBytes == expectedSize
+		&& FileSize(sourcePath) == expectedSize
+		&& FileSize(destinationPath) == expectedSize;
+}
+
+bool ChatLog_FilesEqual(const char[] firstPath, const char[] secondPath, int expectedSize)
+{
+	if (FileSize(secondPath) != expectedSize)
+	{
+		return false;
+	}
+
+	File first = OpenFile(firstPath, "rb");
+	File second = OpenFile(secondPath, "rb");
+	if (first == null || second == null)
+	{
+		delete first;
+		delete second;
+		return false;
+	}
+
+	int firstBuffer[512];
+	int secondBuffer[512];
+	bool equal = true;
+	int firstRead = ReadFile(first, firstBuffer, sizeof(firstBuffer), 1);
+	int secondRead = ReadFile(second, secondBuffer, sizeof(secondBuffer), 1);
+	while (firstRead > 0 && secondRead > 0)
+	{
+		if (firstRead != secondRead)
+		{
+			equal = false;
+			break;
+		}
+		for (int i = 0; i < firstRead; i++)
+		{
+			if (firstBuffer[i] != secondBuffer[i])
+			{
+				equal = false;
+				break;
+			}
+		}
+		if (!equal)
+		{
+			break;
+		}
+		firstRead = ReadFile(first, firstBuffer, sizeof(firstBuffer), 1);
+		secondRead = ReadFile(second, secondBuffer, sizeof(secondBuffer), 1);
+	}
+	if (firstRead < 0 || secondRead < 0 || firstRead != secondRead)
+	{
+		equal = false;
+	}
+
+	delete second;
+	delete first;
+	return equal;
+}
+
+bool ChatLog_IsManagedExportName(const char[] name)
+{
+	int length = strlen(name);
+	if (length != 48 || strncmp(name, "chatlog_", 8) != 0 || strcmp(name[length - 4], ".log") != 0)
+	{
+		return false;
+	}
+
+	char requestId[L4D2_CHATLOG_REQUEST_ID_LENGTH + 1];
+	strcopy(requestId, sizeof(requestId), name[8]);
+	requestId[L4D2_CHATLOG_REQUEST_ID_LENGTH] = '\0';
+	return ChatLog_IsCanonicalRequestId(requestId);
+}
+
+bool ChatLog_CleanupExports()
+{
+	char exportRoot[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, exportRoot, sizeof(exportRoot), L4D2_CHATLOG_EXPORT_ROOT);
+	DirectoryListing directory = OpenDirectory(exportRoot);
+	if (directory == null)
+	{
+		return false;
+	}
+
+	int now = GetTime();
+	int retained;
+	char oldestPath[PLATFORM_MAX_PATH];
+	int oldestTime = 2147483647;
+	char name[PLATFORM_MAX_PATH];
+	FileType type;
+	while (directory.GetNext(name, sizeof(name), type))
+	{
+		if (type != FileType_File || !ChatLog_IsManagedExportName(name))
+		{
+			continue;
+		}
+
+		char path[PLATFORM_MAX_PATH];
+		FormatEx(path, sizeof(path), "%s/%s", exportRoot, name);
+		int changedAt = GetFileTime(path, FileTime_LastChange);
+		if (changedAt < 0 || now - changedAt > L4D2_CHATLOG_EXPORT_MAX_AGE)
+		{
+			if (!DeleteFile(path))
+			{
+				delete directory;
+				return false;
+			}
+			continue;
+		}
+
+		retained++;
+		if (changedAt < oldestTime)
+		{
+			oldestTime = changedAt;
+			strcopy(oldestPath, sizeof(oldestPath), path);
+		}
+	}
+	delete directory;
+
+	while (retained >= L4D2_CHATLOG_EXPORT_MAX_FILES)
+	{
+		if (oldestPath[0] == '\0' || !DeleteFile(oldestPath))
+		{
+			return false;
+		}
+		retained--;
+		if (retained < L4D2_CHATLOG_EXPORT_MAX_FILES)
+		{
+			break;
+		}
+		if (!ChatLog_FindOldestExport(exportRoot, oldestPath, sizeof(oldestPath)))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool ChatLog_FindOldestExport(const char[] exportRoot, char[] oldestPath, int maxLength)
+{
+	oldestPath[0] = '\0';
+	int oldestTime = 2147483647;
+	DirectoryListing directory = OpenDirectory(exportRoot);
+	if (directory == null)
+	{
+		return false;
+	}
+
+	char name[PLATFORM_MAX_PATH];
+	FileType type;
+	while (directory.GetNext(name, sizeof(name), type))
+	{
+		if (type != FileType_File || !ChatLog_IsManagedExportName(name))
+		{
+			continue;
+		}
+		char path[PLATFORM_MAX_PATH];
+		FormatEx(path, sizeof(path), "%s/%s", exportRoot, name);
+		int changedAt = GetFileTime(path, FileTime_LastChange);
+		if (changedAt >= 0 && changedAt <= oldestTime)
+		{
+			oldestTime = changedAt;
+			strcopy(oldestPath, maxLength, path);
+		}
+	}
+	delete directory;
+	return oldestPath[0] != '\0';
 }
 
 void WriteMapBannerIfNeeded()

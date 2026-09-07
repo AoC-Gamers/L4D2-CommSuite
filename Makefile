@@ -13,12 +13,15 @@ SMX_BUILD_DIR ?= .build/smx
 SMX_PACKAGE_DIR ?= .build/package-smx
 RELEASE_BASENAME ?= l4d2-commsuite-local
 
-.PHONY: deps-smx build-smx package-smx release clean clean-all
+.PHONY: deps-smx check-chat-export build-smx package-smx release clean clean-all
 
 deps-smx:
 	$(PYTHON) ./scripts/fetch-sourcemod.py --root . --platform "$(SMX_PLATFORM)" --version "$(SOURCEMOD_VERSION)"
 
-build-smx:
+check-chat-export:
+	$(PYTHON) ./scripts/check-chat-export-contract.py
+
+build-smx: check-chat-export
 	$(PYTHON) ./scripts/build-local.py --root . --spcomp "$(SPCOMP)" --output-root "$(SMX_BUILD_DIR)" --compile-log deps/build-smx-compile.log
 
 package-smx:
