@@ -135,15 +135,6 @@ Comandos:
 - `sm_l4d2_chatlog_join_related`
 - `sm_l4d2_chatlog_join_ip`
 
-Library pública:
-
-- `l4d2_chatlog`
-
-Natives de exportación:
-
-- `L4D2ChatLog_GetActiveFile`
-- `L4D2ChatLog_CreateSnapshot`
-
 ConVars principales:
 
 - `l4d2_chatlog_debug_mask`
@@ -167,13 +158,3 @@ Dependencias:
 - requiere `l4d2_commcore`
 - usa `geoip.ext` para pais/IP
 - usa MySQL solo si `l4d2_chatlog_sql_enabled = 1`
-
-Integración de exportación:
-
-- la library pública `l4d2_chatlog` permite identificar el archivo diario
-  activo y crear snapshots inmutables en una raíz fija;
-- la raíz de exportación compartida debe llegar preparada setgid `2770`; SRCDS
-  pertenece al GID acordado y temporales/snapshots se finalizan `0660`;
-- no enviará HTTP ni dependerá de BanSystem;
-- el contrato y sus límites se definen en
-  [BANSYSTEM_CHAT_EXPORT.md](BANSYSTEM_CHAT_EXPORT.md).

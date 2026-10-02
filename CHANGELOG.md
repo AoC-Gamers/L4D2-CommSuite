@@ -5,13 +5,9 @@
 - `l4d2_chatlog`
   - valida el cliente antes de resolver equipo o nombre en callbacks post-chat renderizado
   - evita errores al loguear chat cuando el autor ya no sigue conectado y usa fallback seguro para equipo/nombre
-  - publica la library/API `l4d2_chatlog` v1 y sube el plugin a `0.4.1`
-  - expone el archivo diario activo como path lógico y crea snapshots inmutables
-    con grupo aislado en una raíz fija y el ABI plano `chatlog_<uuid>.log`, UUID
-    cerrado, límite de 8 MiB y cleanup acotado
-  - preserva el volumen compartido setgid `2770`: valida la raíz existente sin
-    cambiar su ownership y finaliza temporales/snapshots como `0660`, incluido
-    el camino idempotente de reutilización
+  - vuelve a concentrar su responsabilidad en el log local tradicional y la
+    auditoría SQL opcional de joins; no expone una library, include ni snapshots
+    de exportación
 - `l4d2_commguard`
   - corrige el helper compartido `L4D2CS_NormalLogToFileEx` para alinear correctamente `VFormat` con los varargs
   - evita errores `Client index ... is invalid` al loguear cambios de estado de voz con formatos como `client=%N`

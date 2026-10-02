@@ -33,7 +33,6 @@
             "files": [
               "l4d2_commcore.inc",
               "l4d2_commguard.inc",
-              "l4d2_chatlog.inc",
               "l4d2_commrelay.inc",
               "l4d2_commsuite_shared.inc"
             ]
