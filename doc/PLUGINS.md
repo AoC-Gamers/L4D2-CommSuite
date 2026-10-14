@@ -40,6 +40,18 @@ Providers soportados:
 - `sourcecomms++`
 - `bansystem_comm`
 
+La integración con BanSystem requiere Comm 2.3.0 o posterior, que exporta
+`BSComm_GetResolvedCommType` junto a `BSComm_IsClientBanned`. Ambas consultas
+representan la sanción activa; no consultan a CommGuard para resolverla.
+CommGuard prioriza este proveedor sobre SourceComms y BaseComm. El bloqueo de
+texto necesita CommCore y `l4d2_commguard_chat_enabled=1`.
+
+Para voz, CommGuard resuelve el estado que consumen sus satélites; no aplica
+por sí solo un mute global a todos los equipos. BanSystem Comm conserva su
+aplicación de voz del motor. Los avisos de BanSystem usan por separado
+`BSComm_IsClientRestrictionEffective` para evitar anunciar una restricción
+resuelta que todavía no se puede aplicar.
+
 Comando:
 
 - `sm_l4d2_commguard_status`
