@@ -28,6 +28,8 @@ Suite modular de comunicacion para Left 4 Dead 2 sobre SourceMod.
 - `commguard` expone un modelo de voz `pre-check / resolved / changed` para el estado efectivo de bloqueo.
 - `commguard` y `commrelay` unifican las capas transversales de restricciones y relay.
 - `chatnoise` y `chatlog` siguen como satelites especificos de texto.
+- `chatlog` conserva ownership local de sus archivos diarios y de auditoría de
+  joins.
 - la suite usa una carpeta comun para autoexec y logs:
   - `cfg/sourcemod/l4d2_commsuite/`
   - `addons/sourcemod/logs/l4d2_commsuite/`
