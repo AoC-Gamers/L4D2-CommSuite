@@ -11,7 +11,7 @@
 #define _l4d2_commrelay_included
 
 #define L4D2_COMMRELAY_LIBRARY "l4d2_commrelay"
-#define L4D2_COMMRELAY_VERSION "0.3.0"
+#define L4D2_COMMRELAY_VERSION "0.3.1"
 
 /**
  * Returns true when spectator voice relay is enabled locally for the client.

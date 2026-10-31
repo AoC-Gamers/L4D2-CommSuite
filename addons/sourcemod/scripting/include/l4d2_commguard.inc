@@ -14,7 +14,7 @@
 #include <l4d2_commcore>
 
 #define L4D2_COMMGUARD_LIBRARY "l4d2_commguard"
-#define L4D2_COMMGUARD_VERSION "0.3.0"
+#define L4D2_COMMGUARD_VERSION "0.3.1"
 
 /**
  * Punishment providers recognized by CommGuard.

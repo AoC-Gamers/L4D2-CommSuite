@@ -31,11 +31,49 @@ ConVar g_cvChatEnabled = null;
 ConVar g_cvVoiceEnabled = null;
 ConVar g_cvLogMode = null;
 
-bool g_bCoreLibrary = false;
-bool g_bBaseCommLibrary = false;
-bool g_bBanSystemCommLibrary = false;
-bool g_bSourceCommsLibrary = false;
-bool g_bLateLoad = false;
+enum struct CommGuardRuntimeState
+{
+	bool lateLoad;
+	bool hasCore;
+	bool hasBaseComm;
+	bool hasBanSystemComm;
+	bool hasSourceComms;
+	bool librariesReady;
+	bool needsVoiceSync;
+
+	void Reset()
+	{
+		this.lateLoad = false;
+		this.hasCore = false;
+		this.hasBaseComm = false;
+		this.hasBanSystemComm = false;
+		this.hasSourceComms = false;
+		this.librariesReady = false;
+		this.needsVoiceSync = true;
+	}
+
+	void DetectLibraries()
+	{
+		this.hasCore = LibraryExists(L4D2_COMMCORE_LIBRARY);
+		this.hasBaseComm = LibraryExists(L4D2_COMMSUITE_BASECOMM_LIBRARY);
+		this.hasBanSystemComm = LibraryExists(L4D2_COMMSUITE_BANSYSTEM_COMM_LIBRARY);
+		this.hasSourceComms = LibraryExists(L4D2_COMMSUITE_SOURCECOMMS_LIBRARY);
+		this.librariesReady = true;
+		this.needsVoiceSync = true;
+	}
+
+	void SetLibraryAvailability(const char[] name, bool available)
+	{
+		if (StrEqual(name, L4D2_COMMCORE_LIBRARY)) this.hasCore = available;
+		else if (StrEqual(name, L4D2_COMMSUITE_BASECOMM_LIBRARY)) this.hasBaseComm = available;
+		else if (StrEqual(name, L4D2_COMMSUITE_BANSYSTEM_COMM_LIBRARY)) this.hasBanSystemComm = available;
+		else if (StrEqual(name, L4D2_COMMSUITE_SOURCECOMMS_LIBRARY)) this.hasSourceComms = available;
+		else return;
+		this.needsVoiceSync = true;
+	}
+}
+
+CommGuardRuntimeState g_Runtime;
 bool g_bVoiceBlocked[MAXPLAYERS + 1];
 L4D2CommGuardProvider g_eLastLoggedProvider = Provider_None;
 bool g_bLastLoggedProviderValid = false;
@@ -58,7 +96,8 @@ public Plugin myinfo =
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 {
 	RegPluginLibrary(L4D2_COMMGUARD_LIBRARY);
-	g_bLateLoad = late;
+	g_Runtime.Reset();
+	g_Runtime.lateLoad = late;
 
 	g_fwdChatBlockCheck = CreateGlobalForward("L4D2CommGuard_OnChatBlockCheck", ET_Hook, Param_Cell, Param_Cell, Param_String);
 	g_fwdVoiceBlockCheck = CreateGlobalForward("L4D2CommGuard_OnVoiceBlockCheck", ET_Hook, Param_Cell);
@@ -69,7 +108,6 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 	CreateNative("L4D2CommGuard_IsClientVoiceBlocked", Native_L4D2CommGuard_IsClientVoiceBlocked);
 	CreateNative("L4D2CommGuard_GetLoadedProviderMask", Native_L4D2CommGuard_GetLoadedProviderMask);
 	CreateNative("L4D2CommGuard_GetActiveProvider", Native_L4D2CommGuard_GetActiveProvider);
-	L4D2CommGuard_RefreshLibraryState();
 	return APLRes_Success;
 }
 
@@ -86,85 +124,28 @@ public void OnPluginStart()
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_commguard", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
 
-	if (!g_bLateLoad)
-		return;
-
-	L4D2CommGuard_RefreshLibraryState();
-	L4D2CommGuard_RefreshAllVoiceStates();
 }
 
 public void OnAllPluginsLoaded()
 {
-	L4D2CommGuard_RefreshLibraryState();
-	L4D2CommGuard_RefreshAllVoiceStates();
+	g_Runtime.DetectLibraries();
 }
 
 public void OnLibraryAdded(const char[] name)
 {
-	bool refreshVoiceStates = false;
-
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreLibrary = true;
-	}
-	else if (StrEqual(name, L4D2_COMMSUITE_BASECOMM_LIBRARY))
-	{
-		g_bBaseCommLibrary = true;
-		refreshVoiceStates = true;
-	}
-	else if (StrEqual(name, L4D2_COMMSUITE_BANSYSTEM_COMM_LIBRARY))
-	{
-		g_bBanSystemCommLibrary = true;
-		refreshVoiceStates = true;
-	}
-	else if (StrEqual(name, L4D2_COMMSUITE_SOURCECOMMS_LIBRARY))
-	{
-		g_bSourceCommsLibrary = true;
-		refreshVoiceStates = true;
-	}
-	else
-	{
-		return;
-	}
-
-	if (!refreshVoiceStates)
-		return;
-
-	L4D2CommGuard_SyncProviderState();
-	L4D2CommGuard_RefreshAllVoiceStates();
+	g_Runtime.SetLibraryAvailability(name, true);
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
-	bool refreshVoiceStates = false;
+	g_Runtime.SetLibraryAvailability(name, false);
+}
 
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreLibrary = false;
-	}
-	else if (StrEqual(name, L4D2_COMMSUITE_BASECOMM_LIBRARY))
-	{
-		g_bBaseCommLibrary = false;
-		refreshVoiceStates = true;
-	}
-	else if (StrEqual(name, L4D2_COMMSUITE_BANSYSTEM_COMM_LIBRARY))
-	{
-		g_bBanSystemCommLibrary = false;
-		refreshVoiceStates = true;
-	}
-	else if (StrEqual(name, L4D2_COMMSUITE_SOURCECOMMS_LIBRARY))
-	{
-		g_bSourceCommsLibrary = false;
-		refreshVoiceStates = true;
-	}
-	else
-	{
+public void OnGameFrame()
+{
+	if (!g_Runtime.librariesReady || !g_Runtime.needsVoiceSync)
 		return;
-	}
-
-	if (!refreshVoiceStates)
-		return;
-
+	g_Runtime.needsVoiceSync = false;
 	L4D2CommGuard_SyncProviderState();
 	L4D2CommGuard_RefreshAllVoiceStates();
 }
@@ -341,18 +322,6 @@ void L4D2CommGuard_SyncProviderState()
 }
 
 /**
- * Refreshes runtime library state from currently loaded plugins.
- */
-void L4D2CommGuard_RefreshLibraryState()
-{
-	g_bCoreLibrary = LibraryExists(L4D2_COMMCORE_LIBRARY);
-	g_bBaseCommLibrary = LibraryExists(L4D2_COMMSUITE_BASECOMM_LIBRARY);
-	g_bBanSystemCommLibrary = LibraryExists(L4D2_COMMSUITE_BANSYSTEM_COMM_LIBRARY);
-	g_bSourceCommsLibrary = LibraryExists(L4D2_COMMSUITE_SOURCECOMMS_LIBRARY);
-	L4D2CommGuard_SyncProviderState();
-}
-
-/**
  * Returns a bitmask of loaded punishment providers.
  *
  * @return              Loaded provider mask.
@@ -361,17 +330,17 @@ L4D2CommGuardProvider L4D2CommGuard_GetLoadedProviderMaskInternal()
 {
 	L4D2CommGuardProvider mask = Provider_None;
 
-	if (g_bBaseCommLibrary)
+	if (g_Runtime.hasBaseComm)
 	{
 		mask |= Provider_BaseComm;
 	}
 
-	if (g_bSourceCommsLibrary)
+	if (g_Runtime.hasSourceComms)
 	{
 		mask |= Provider_SourceComms;
 	}
 
-	if (g_bBanSystemCommLibrary)
+	if (g_Runtime.hasBanSystemComm)
 	{
 		mask |= Provider_BanSystemComm;
 	}
@@ -388,17 +357,17 @@ L4D2CommGuardProvider L4D2CommGuard_GetLoadedProviderMaskInternal()
  */
 L4D2CommGuardProvider L4D2CommGuard_GetActiveProviderInternal()
 {
-	if (g_bBanSystemCommLibrary)
+	if (g_Runtime.hasBanSystemComm)
 	{
 		return Provider_BanSystemComm;
 	}
 
-	if (g_bSourceCommsLibrary)
+	if (g_Runtime.hasSourceComms)
 	{
 		return Provider_SourceComms;
 	}
 
-	if (g_bBaseCommLibrary)
+	if (g_Runtime.hasBaseComm)
 	{
 		return Provider_BaseComm;
 	}
@@ -473,6 +442,8 @@ void L4D2CommGuard_FormatProviderName(L4D2CommGuardProvider provider, char[] buf
  */
 bool L4D2CommGuard_IsChatBlockedByProvider(int client)
 {
+	if (!g_Runtime.librariesReady)
+		return false;
 	switch (L4D2CommGuard_GetActiveProviderInternal())
 	{
 		case Provider_BanSystemComm:
@@ -560,7 +531,7 @@ bool L4D2CommGuard_ShouldBlockChat(int client, L4D2CommChannel channel, const ch
 
 public Action L4D2Comm_OnChatMessage(int client, L4D2CommChannel channel, const char[] text)
 {
-	if (!g_bCoreLibrary || !IsHumanClient(client))
+	if (!g_Runtime.hasCore || !IsHumanClient(client))
 	{
 		return Plugin_Continue;
 	}
@@ -582,6 +553,8 @@ public Action L4D2Comm_OnChatMessage(int client, L4D2CommChannel channel, const 
  */
 bool L4D2CommGuard_IsVoiceBlockedByProvider(int client)
 {
+	if (!g_Runtime.librariesReady)
+		return false;
 	switch (L4D2CommGuard_GetActiveProviderInternal())
 	{
 		case Provider_BanSystemComm:
@@ -740,7 +713,7 @@ public Action Command_L4D2CommGuard_Status(int client, int args)
 		client,
 		"%s core={green}%d{default} loaded_mask={green}%d{default} loaded={green}%s{default} active={green}%d{default}({green}%s{default}) debug_mask={green}%d{default} chat_enabled={green}%d{default} voice_enabled={green}%d{default}",
 		L4D2_COMMSUITE_COMMGUARD_PREFIX,
-		g_bCoreLibrary,
+		g_Runtime.hasCore,
 		loadedMask,
 		loadedProviders,
 		view_as<int>(activeProvider),
