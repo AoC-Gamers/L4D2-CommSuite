@@ -170,3 +170,19 @@ Dependencias:
 - requiere `l4d2_commcore`
 - usa `geoip.ext` para pais/IP
 - usa MySQL solo si `l4d2_chatlog_sql_enabled = 1`
+
+## Recarga de dependencias
+
+CommGuard y CommRelay 0.3.1 hacen el inventario de proveedores en
+`OnAllPluginsLoaded`.
+Los callbacks de biblioteca sólo actualizan presencia y reconciliación pendiente;
+las consultas de voz se ejecutan después desde un punto seguro. CommGuard no
+consulta proveedores en la carga tardía temprana, y CommRelay conserva las
+cookies pero aplaza sus overrides hasta terminar el inventario. La prioridad
+BanSystem, SourceComms y BaseComm, las ConVars y las restricciones permanecen
+iguales. Al retirarse un proveedor se recalcula el fallback vigente.
+
+`make check-lifecycle` ejecuta funciones productivas con natives modeladas y
+ASan/UBSan: altas/bajas coalescidas, prioridad, recarga y bloqueo de voz del relay.
+El build lo incluye como gate. No acredita enlace real de natives ni gameplay.
+Las descargas de CommRelay siguen restaurando los overrides de escucha.

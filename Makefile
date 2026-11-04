@@ -13,12 +13,15 @@ SMX_BUILD_DIR ?= .build/smx
 SMX_PACKAGE_DIR ?= .build/package-smx
 RELEASE_BASENAME ?= l4d2-commsuite-local
 
-.PHONY: deps-smx build-smx package-smx release clean clean-all
+.PHONY: check-lifecycle deps-smx build-smx package-smx release clean clean-all
 
 deps-smx:
 	$(PYTHON) ./scripts/fetch-sourcemod.py --root . --platform "$(SMX_PLATFORM)" --version "$(SOURCEMOD_VERSION)"
 
-build-smx:
+check-lifecycle:
+	$(PYTHON) -m unittest discover -s tests -v
+
+build-smx: check-lifecycle
 	$(PYTHON) ./scripts/build-local.py --root . --spcomp "$(SPCOMP)" --output-root "$(SMX_BUILD_DIR)" --compile-log deps/build-smx-compile.log
 
 package-smx:

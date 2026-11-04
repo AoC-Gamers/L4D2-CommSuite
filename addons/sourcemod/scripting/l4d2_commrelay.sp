@@ -36,9 +36,41 @@ ConVar g_cvLogMode = null;
 Handle g_hCookieVoiceEnabled = INVALID_HANDLE;
 Localizer g_hRelayLocalizer;
 
-bool g_bCoreLibrary = false;
-bool g_bCommGuardLibrary = false;
-bool g_bLateLoad = false;
+enum struct CommRelayRuntimeState
+{
+	bool lateLoad;
+	bool hasCore;
+	bool hasCommGuard;
+	bool librariesReady;
+	bool needsVoiceSync;
+
+	void Reset()
+	{
+		this.lateLoad = false;
+		this.hasCore = false;
+		this.hasCommGuard = false;
+		this.librariesReady = false;
+		this.needsVoiceSync = true;
+	}
+
+	void DetectLibraries()
+	{
+		this.hasCore = LibraryExists(L4D2_COMMCORE_LIBRARY);
+		this.hasCommGuard = LibraryExists(L4D2_COMMGUARD_LIBRARY);
+		this.librariesReady = true;
+		this.needsVoiceSync = true;
+	}
+
+	void SetLibraryAvailability(const char[] name, bool available)
+	{
+		if (StrEqual(name, L4D2_COMMCORE_LIBRARY)) this.hasCore = available;
+		else if (StrEqual(name, L4D2_COMMGUARD_LIBRARY)) this.hasCommGuard = available;
+		else return;
+		this.needsVoiceSync = true;
+	}
+}
+
+CommRelayRuntimeState g_Runtime;
 bool g_bRelayLocalizerReady = false;
 bool g_bVoiceEnabledByClient[MAXPLAYERS + 1];
 bool g_bCookiesCached[MAXPLAYERS + 1];
@@ -55,19 +87,13 @@ public Plugin myinfo =
 	url = "https://github.com/AoC-Gamers/L4D2-CommSuite"
 };
 
-static void Relay_RefreshLibraryState()
-{
-	g_bCoreLibrary = LibraryExists(L4D2_COMMCORE_LIBRARY);
-	g_bCommGuardLibrary = LibraryExists(L4D2_COMMGUARD_LIBRARY);
-}
-
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int errMax)
 {
 	RegPluginLibrary(L4D2_COMMRELAY_LIBRARY);
 	CreateNative("L4D2CommRelay_IsClientVoiceEnabled", Native_IsVoiceEnabled);
 	CreateNative("L4D2CommRelay_SetClientVoiceEnabled", Native_SetVoiceEnabled);
-	g_bLateLoad = late;
-	Relay_RefreshLibraryState();
+	g_Runtime.Reset();
+	g_Runtime.lateLoad = late;
 	return APLRes_Success;
 }
 
@@ -89,8 +115,6 @@ public void OnPluginStart()
 	L4D2CS_BuildLogPath("l4d2_commrelay.log", g_sLogPath, sizeof(g_sLogPath));
 
 	g_hCookieVoiceEnabled = RegClientCookie("l4d2_commrelay_voice_enabled", "L4D2 CommRelay spectator voice preference", CookieAccess_Protected);
-
-	Relay_RefreshLibraryState();
 
 	HookConVarChange(g_cvVoiceEnabled, Relay_OnConVarChanged);
 	HookConVarChange(g_cvVoiceDefaultEnabled, Relay_OnConVarChanged);
@@ -118,63 +142,29 @@ public void OnPluginStart()
 	L4D2CS_EnsureAutoExecFolder();
 	AutoExecConfig(true, "l4d2_commrelay", L4D2_COMMSUITE_AUTOEXEC_FOLDER);
 
-	if (!g_bLateLoad)
-		return;
-
-
-	Relay_RefreshLibraryState();
 }
 
 public void OnAllPluginsLoaded()
 {
-	Relay_RefreshLibraryState();
+	g_Runtime.DetectLibraries();
+	QueueRefreshAllVoiceOverrides();
 }
 
 public void OnLibraryAdded(const char[] name)
 {
-	bool refreshVoiceOverrides = false;
-
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreLibrary = true;
-	}
-	else if (StrEqual(name, L4D2_COMMGUARD_LIBRARY))
-	{
-		g_bCommGuardLibrary = true;
-		refreshVoiceOverrides = true;
-	}
-	else
-	{
-		return;
-	}
-
-	if (!refreshVoiceOverrides)
-		return;
-
-	QueueRefreshAllVoiceOverrides();
+	g_Runtime.SetLibraryAvailability(name, true);
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
-	bool refreshVoiceOverrides = false;
+	g_Runtime.SetLibraryAvailability(name, false);
+}
 
-	if (StrEqual(name, L4D2_COMMCORE_LIBRARY))
-	{
-		g_bCoreLibrary = false;
-	}
-	else if (StrEqual(name, L4D2_COMMGUARD_LIBRARY))
-	{
-		g_bCommGuardLibrary = false;
-		refreshVoiceOverrides = true;
-	}
-	else
-	{
+public void OnGameFrame()
+{
+	if (!g_Runtime.librariesReady || !g_Runtime.needsVoiceSync)
 		return;
-	}
-
-	if (!refreshVoiceOverrides)
-		return;
-
+	g_Runtime.needsVoiceSync = false;
 	QueueRefreshAllVoiceOverrides();
 }
 
@@ -250,7 +240,7 @@ public void OnClientCookiesCached(int client)
 
 public void L4D2Comm_OnChatMessage_Rendered_Post(int client, L4D2CommChannel channel, const char[] prefix, const char[] name, const char[] text)
 {
-	if (!g_bCoreLibrary || g_cvChatEnabled == null || !g_cvChatEnabled.BoolValue)
+	if (!g_Runtime.hasCore || g_cvChatEnabled == null || !g_cvChatEnabled.BoolValue)
 	{
 		return;
 	}
@@ -420,8 +410,8 @@ public Action Command_Status(int client, int args)
 		client,
 		"%s core={green}%d{default} commguard={green}%d{default} debug_mask={green}%d{default} chat={green}%d{default} chat_spec={green}%d{default} chat_sourcetv={green}%d{default} voice={green}%d{default} voice_default={green}%d{default} voice_survivor={green}%d{default} voice_infected={green}%d{default}",
 		L4D2_COMMSUITE_COMMRELAY_PREFIX,
-		g_bCoreLibrary,
-		g_bCommGuardLibrary,
+		g_Runtime.hasCore,
+		g_Runtime.hasCommGuard,
 		g_cvDebugMask != null ? g_cvDebugMask.IntValue : 0,
 		g_cvChatEnabled != null && g_cvChatEnabled.BoolValue,
 		g_cvChatSpecTeam != null && g_cvChatSpecTeam.BoolValue,
@@ -600,7 +590,7 @@ void ReplyVoiceStatus(int client)
 		g_bVoiceEnabledByClient[client],
 		g_cvVoiceSurvivor != null && g_cvVoiceSurvivor.BoolValue,
 		g_cvVoiceInfected != null && g_cvVoiceInfected.BoolValue,
-		g_bCommGuardLibrary
+		g_Runtime.hasCommGuard
 	);
 }
 
@@ -702,6 +692,8 @@ void RefreshAllVoiceOverrides()
 
 void RefreshClientVoiceOverrides(int receiver)
 {
+	if (!g_Runtime.librariesReady)
+		return;
 	if (!IsHumanClient(receiver))
 	{
 		return;
@@ -731,7 +723,7 @@ void RefreshClientVoiceOverrides(int receiver)
 				{
 					desired = Listen_No;
 				}
-				else if (g_bCommGuardLibrary && L4D2CommGuard_IsClientVoiceBlocked(sender))
+				else if (g_Runtime.hasCommGuard && L4D2CommGuard_IsClientVoiceBlocked(sender))
 				{
 					desired = Listen_No;
 				}
