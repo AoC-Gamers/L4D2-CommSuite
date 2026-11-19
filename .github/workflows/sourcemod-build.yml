@@ -8,35 +8,32 @@ on:
     tags:
       - "channel/*"
     paths:
-      - .github/workflows/sourcemod-build.yml
-      - scripts/ci-build-sourcemod.sh
-      - scripts/ci-validate-artifact.sh
-      - scripts/fetch-sourcemod.py
-      - scripts/build-local.py
-      - scripts/stage-artifact.py
-      - scripts/package-release.py
-      - plugin-package-map.json
+      - .gitattributes
+      - scripts/**
+      - Makefile
       - addons/sourcemod/**
+      - README.md
+      - LICENSE
+      - NOTICES.md
+      - CHANGELOG.md
+      - .github/workflows/**
+      - tests/**
   pull_request:
     branches:
       - main
       - develop
     paths:
-      - .github/workflows/sourcemod-build.yml
-      - scripts/ci-build-sourcemod.sh
-      - scripts/ci-validate-artifact.sh
-      - scripts/fetch-sourcemod.py
-      - scripts/build-local.py
-      - scripts/stage-artifact.py
-      - scripts/package-release.py
-      - plugin-package-map.json
+      - .gitattributes
+      - scripts/**
+      - Makefile
       - addons/sourcemod/**
+      - README.md
+      - LICENSE
+      - NOTICES.md
+      - CHANGELOG.md
+      - .github/workflows/**
+      - tests/**
   workflow_dispatch:
-    inputs:
-      sourcemod_version:
-        description: SourceMod version to download
-        required: false
-        default: "1.12"
 
 concurrency:
   group: sourcemod-build-${{ github.ref }}
@@ -46,7 +43,7 @@ permissions:
   contents: read
 
 env:
-  SOURCEMOD_VERSION: "1.12"
+  SOURCEMOD_VERSION: ${{ vars.SOURCEMOD_VERSION }}
 
 jobs:
   deps-smx:
@@ -55,6 +52,14 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
 
     steps:
+      - name: Validate organization SourceMod version
+        shell: bash
+        run: |
+          if [[ ! "$SOURCEMOD_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Set the AoC-Gamers Actions variable SOURCEMOD_VERSION to a SourceMod branch such as 1.12."
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@v6
 
@@ -67,13 +72,13 @@ jobs:
         id: cache-key
         shell: bash
         run: |
-          echo "key=smx-deps-${{ runner.os }}-${{ hashFiles('scripts/fetch-sourcemod.py', 'scripts/build-local.py', 'scripts/stage-artifact.py', 'scripts/package-release.py', 'plugin-package-map.json', 'Makefile') }}" >> "$GITHUB_OUTPUT"
+          echo "key=smx-deps-${{ runner.os }}-${{ env.SOURCEMOD_VERSION }}-${{ hashFiles('scripts/deps/fetch-sourcemod.py', 'scripts/build/build-local.py', 'scripts/package/stage-artifact.py', 'scripts/package/package-release.py', 'scripts/package/package-map.json', 'Makefile') }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore dependency cache
         id: deps-cache-restore
         uses: actions/cache/restore@v5
         with:
-          path: deps
+          path: .deps/smx
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Fetch SourceMod dependencies
@@ -84,7 +89,7 @@ jobs:
         if: steps.deps-cache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
-          path: deps
+          path: .deps/smx
           key: ${{ steps.cache-key.outputs.key }}
 
   build-smx:
@@ -103,12 +108,12 @@ jobs:
       - name: Restore dependency cache
         uses: actions/cache/restore@v5
         with:
-          path: deps
+          path: .deps/smx
           key: ${{ needs.deps-smx.outputs.cache-key }}
           fail-on-cache-miss: true
 
       - name: Build SMX
-        run: make build-smx PYTHON=python3 SPCOMP="deps/sourcemod-linux/addons/sourcemod/scripting/spcomp"
+        run: make build-smx PYTHON=python3
 
       - name: Upload SMX build tree
         uses: actions/upload-artifact@v6
@@ -122,15 +127,17 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: smx-compile-log
-          path: deps/build-smx-compile.log
+          path: .build/build-smx-compile.log
           if-no-files-found: error
           retention-days: 1
 
-  release:
+  package:
     runs-on: ubuntu-latest
     needs: build-smx
-    permissions:
-      contents: write
+    outputs:
+      basename: ${{ steps.meta.outputs.basename }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      version: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Check out repository
@@ -147,19 +154,8 @@ jobs:
           name: smx-build
           path: .build/smx
 
-      - name: Download compile log
-        uses: actions/download-artifact@v8
-        with:
-          name: smx-compile-log
-          path: deps
-
       - name: Package SMX tree
         run: make package-smx PYTHON=python3
-
-      - name: Stage artifact
-        run: |
-          python3 ./scripts/stage-artifact.py . ./.build/package-smx ./deps/build-smx-compile.log
-          bash ./scripts/ci-validate-artifact.sh
 
       - name: Resolve artifact metadata
         id: meta
@@ -178,9 +174,7 @@ jobs:
             version="pr-${GITHUB_SHA::7}"
             release_tag=""
           fi
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "basename=l4d2-commsuite-${version}" >> "$GITHUB_OUTPUT"
-          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          printf "%s\n" "version=${version}" "basename=l4d2-commsuite-${version}" "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
 
       - name: Package zip
         run: make release PYTHON=python3 RELEASE_BASENAME="${{ steps.meta.outputs.basename }}"
@@ -193,23 +187,40 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  publish-channel:
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Download validated ZIP
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.package.outputs.basename }}
+          path: dist/release
+
       - name: Publish release asset
-        if: steps.meta.outputs.release_tag != ''
+        if: needs.package.outputs.release_tag != ''
         uses: softprops/action-gh-release@5113cdc90fd4d541c801c55356214017bf5ae34b
         with:
-          tag_name: ${{ steps.meta.outputs.release_tag }}
-          name: ${{ steps.meta.outputs.version == 'develop' && 'Develop' || 'Latest' }}
+          tag_name: ${{ needs.package.outputs.release_tag }}
+          name: ${{ needs.package.outputs.version == 'develop' && 'Develop' || 'Latest' }}
           target_commitish: ${{ github.sha }}
-          files: dist/release/${{ steps.meta.outputs.basename }}.zip
+          files: dist/release/${{ needs.package.outputs.basename }}.zip
           overwrite_files: true
           fail_on_unmatched_files: true
           draft: false
-          prerelease: false
-          make_latest: false
+          prerelease: ${{ needs.package.outputs.release_tag == 'channel/develop' }}
+          make_latest: ${{ needs.package.outputs.release_tag == 'channel/latest' }}
 
       - name: Advance rolling channel tag
-        if: steps.meta.outputs.release_tag != ''
+        if: needs.package.outputs.release_tag != ''
         shell: bash
         run: |
-          git tag --force "${{ steps.meta.outputs.release_tag }}" "$GITHUB_SHA"
-          git push --force origin "refs/tags/${{ steps.meta.outputs.release_tag }}"
+          git tag --force "${{ needs.package.outputs.release_tag }}" "$GITHUB_SHA"
+          git push --force origin "refs/tags/${{ needs.package.outputs.release_tag }}"

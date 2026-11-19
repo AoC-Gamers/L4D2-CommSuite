@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
-  SOURCEMOD_VERSION: "1.12"
+  SOURCEMOD_VERSION: ${{ vars.SOURCEMOD_VERSION }}
 
 jobs:
   prepare-release:
@@ -30,6 +30,7 @@ jobs:
       release_name: ${{ steps.release.outputs.release_name }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       release_tag: ${{ steps.inputs.outputs.release_tag }}
+      release_commit: ${{ steps.verify-tag.outputs.commit }}
 
     steps:
       - name: Check out repository
@@ -39,31 +40,43 @@ jobs:
 
       - name: Resolve release ref
         id: inputs
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            echo "release_tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          elif [[ -n "${{ github.event.inputs.tag }}" ]]; then
-            echo "release_tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "Release tag is required." >&2
+          tag="$REQUESTED_TAG"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            tag="$GITHUB_REF_NAME"
+          fi
+          if [[ ! "$tag" =~ ^sourcemod/v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Expected a release tag of the form sourcemod/vX.Y.Z." >&2
             exit 1
           fi
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure tag points to main history
+        id: verify-tag
+        env:
+          RELEASE_TAG: ${{ steps.inputs.outputs.release_tag }}
+        shell: bash
+        run: |
+          git fetch origin main
+          git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          target_commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          if ! git merge-base --is-ancestor "$target_commit" "origin/main"; then
+            echo "Tag $RELEASE_TAG does not point to a commit on main." >&2
+            exit 1
+          fi
+          echo "commit=$target_commit" >> "$GITHUB_OUTPUT"
 
       - name: Resolve release tag
         id: release
-        run: bash ./scripts/ci-resolve-release.sh "${{ steps.inputs.outputs.release_tag }}"
-
-      - name: Ensure tag points to main history
-        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.inputs.outputs.release_tag }}
+          RELEASE_COMMIT: ${{ steps.verify-tag.outputs.commit }}
         run: |
-          git fetch origin main --depth=1
-          git fetch origin "refs/tags/${{ steps.inputs.outputs.release_tag }}:refs/tags/${{ steps.inputs.outputs.release_tag }}"
-          target_commit="$(git rev-list -n 1 "${{ steps.inputs.outputs.release_tag }}")"
-          if ! git merge-base --is-ancestor "$target_commit" "origin/main"; then
-            echo "Tag ${{ steps.inputs.outputs.release_tag }} does not point to a commit on main." >&2
-            exit 1
-          fi
+          git show "${RELEASE_COMMIT}:CHANGELOG.md" > "$RUNNER_TEMP/commsuite-changelog.md"
+          RELEASE_CHANGELOG="$RUNNER_TEMP/commsuite-changelog.md" make --no-print-directory resolve-release
 
   deps-smx:
     runs-on: ubuntu-latest
@@ -71,6 +84,14 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
 
     steps:
+      - name: Validate organization SourceMod version
+        shell: bash
+        run: |
+          if [[ ! "$SOURCEMOD_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Set the AoC-Gamers Actions variable SOURCEMOD_VERSION to a SourceMod branch such as 1.12."
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@v6
 
@@ -83,13 +104,13 @@ jobs:
         id: cache-key
         shell: bash
         run: |
-          echo "key=smx-deps-${{ runner.os }}-${{ hashFiles('scripts/fetch-sourcemod.py', 'scripts/build-local.py', 'scripts/stage-artifact.py', 'scripts/package-release.py', 'plugin-package-map.json', 'Makefile') }}" >> "$GITHUB_OUTPUT"
+          echo "key=smx-deps-${{ runner.os }}-${{ env.SOURCEMOD_VERSION }}-${{ hashFiles('scripts/deps/fetch-sourcemod.py', 'scripts/build/build-local.py', 'scripts/package/stage-artifact.py', 'scripts/package/package-release.py', 'scripts/package/package-map.json', 'Makefile') }}" >> "$GITHUB_OUTPUT"
 
       - name: Restore dependency cache
         id: deps-cache-restore
         uses: actions/cache/restore@v5
         with:
-          path: deps
+          path: .deps/smx
           key: ${{ steps.cache-key.outputs.key }}
 
       - name: Fetch SourceMod dependencies
@@ -100,7 +121,7 @@ jobs:
         if: steps.deps-cache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
-          path: deps
+          path: .deps/smx
           key: ${{ steps.cache-key.outputs.key }}
 
   build-smx:
@@ -114,7 +135,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ needs.prepare-release.outputs.release_tag }}
+          ref: ${{ needs.prepare-release.outputs.release_commit }}
 
       - name: Install build dependencies
         run: |
@@ -124,12 +145,12 @@ jobs:
       - name: Restore dependency cache
         uses: actions/cache/restore@v5
         with:
-          path: deps
+          path: .deps/smx
           key: ${{ needs.deps-smx.outputs.cache-key }}
           fail-on-cache-miss: true
 
       - name: Build SMX
-        run: make build-smx PYTHON=python3 SPCOMP="deps/sourcemod-linux/addons/sourcemod/scripting/spcomp"
+        run: make build-smx PYTHON=python3 SPCOMP=".deps/smx/sourcemod-linux/addons/sourcemod/scripting/spcomp"
 
       - name: Upload SMX build tree
         uses: actions/upload-artifact@v6
@@ -139,15 +160,21 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Preserve the compile log from historical tags
+        run: |
+          if [[ -f deps/build-smx-compile.log ]]; then
+            cp deps/build-smx-compile.log .build/build-smx-compile.log
+          fi
+
       - name: Upload compile log
         uses: actions/upload-artifact@v6
         with:
           name: smx-compile-log
-          path: deps/build-smx-compile.log
+          path: .build/build-smx-compile.log
           if-no-files-found: error
           retention-days: 1
 
-  release:
+  package:
     runs-on: ubuntu-latest
     needs:
       - prepare-release
@@ -158,7 +185,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ needs.prepare-release.outputs.release_tag }}
+          ref: ${{ needs.prepare-release.outputs.release_commit }}
 
       - name: Install build dependencies
         run: |
@@ -171,7 +198,8 @@ jobs:
           name: smx-build
           path: .build/smx
 
-      - name: Download compile log
+      - name: Restore the log expected by historical tags
+        if: ${{ hashFiles('plugin-package-map.json') != '' }}
         uses: actions/download-artifact@v8
         with:
           name: smx-compile-log
@@ -179,11 +207,6 @@ jobs:
 
       - name: Package SMX tree
         run: make package-smx PYTHON=python3
-
-      - name: Stage artifact
-        run: |
-          python3 ./scripts/stage-artifact.py . ./.build/package-smx ./deps/build-smx-compile.log
-          bash ./scripts/ci-validate-artifact.sh
 
       - name: Package zip
         run: make release PYTHON=python3 RELEASE_BASENAME="${{ needs.prepare-release.outputs.basename }}"
@@ -195,6 +218,27 @@ jobs:
           path: dist/release/${{ needs.prepare-release.outputs.basename }}.zip
           if-no-files-found: error
           retention-days: 14
+
+  publish-release:
+    runs-on: ubuntu-latest
+    needs:
+      - prepare-release
+      - package
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare-release.outputs.release_commit }}
+
+      - name: Download validated ZIP
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.prepare-release.outputs.basename }}
+          path: dist/release
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
