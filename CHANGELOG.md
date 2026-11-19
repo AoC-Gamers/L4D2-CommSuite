@@ -1,6 +1,16 @@
 # Changelog
 
-## Sin versionar
+## Unreleased
+
+### Añadido
+
+- El código propio de lechuga se ofrece bajo GPL-3.0-only. El ZIP incluye el texto de la licencia y los avisos de terceros.
+
+### Desarrollo
+
+- Make y GitHub Actions comparten el flujo de compilación y validación del ZIP instalable. La release versionada toma la versión del paquete del changelog.
+
+### Corregido
 
 - `l4d2_chatlog`
   - valida el cliente antes de resolver equipo o nombre en callbacks post-chat renderizado
